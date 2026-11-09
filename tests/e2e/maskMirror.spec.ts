@@ -229,7 +229,11 @@ test('pré-seleção, eixo por snap/clique, Foco e referência transformada com 
   await panel(page)
     .getByLabel('Apagar objetos de origem?', { exact: true })
     .selectOption('yes');
+  await panel(page)
+    .getByLabel('Apagar objetos de origem?', { exact: true })
+    .blur();
   await page.keyboard.press('Control+0');
+  await expect(page.locator('.app-shell')).toHaveClass(/focus-mode/);
   await page.setViewportSize({ width: 900, height: 650 });
   await save(page);
   await page.screenshot({ path: 'docs/mask-mirror-compact.png' });
@@ -248,5 +252,8 @@ test('pré-seleção, eixo por snap/clique, Foco e referência transformada com 
   expect(actual.x).toBeCloseTo(expected.x, 7);
   expect(actual.y).toBeCloseTo(expected.y, 7);
   expect(after.masks[0].primitives[3].text).toBe('Cota 100');
+  expect(
+    after.masks[0].primitives[3].textRotation! + after.masks[0].rotation,
+  ).toBeCloseTo(40, 8);
   expect(after.bars).toEqual(before.bars);
 });
