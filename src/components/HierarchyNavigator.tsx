@@ -145,6 +145,7 @@ export default function HierarchyNavigator({
   const [target, setTarget] = useState('');
   const nameInput = useRef<HTMLInputElement>(null);
   const submitted = useRef(false);
+  const trigger = useRef<HTMLElement | null>(null);
   const initial = useRef({ name: '', parent: '' });
   const lastCreated = useRef<{ kind: HierarchyKind; id: string } | null>(null);
   const [created, setCreated] = useState<{
@@ -156,6 +157,7 @@ export default function HierarchyNavigator({
   const cancel = () => {
     setEditor(null);
     setError('');
+    if (trigger.current?.isConnected) trigger.current.focus();
   };
   useEffect(() => {
     if (editor) {
@@ -170,15 +172,18 @@ export default function HierarchyNavigator({
   }, [scopeDetailId]);
   const active = h.details.find((d) => d.id === activeDetailId)!;
   const activeElement = h.elements.find((e) => e.id === active.elementId)!;
+  const allowAction = () =>
+    !editor ||
+    (name === initial.current.name && parent === initial.current.parent) ||
+    window.confirm('Descartar o rascunho da hierarquia e iniciar outra ação?');
+  const openDetail = (action: () => void) => {
+    if (!allowAction()) return;
+    cancel();
+    action();
+  };
   const begin = (kind: HierarchyKind, id?: string, parentOverride?: string) => {
-    if (
-      editor &&
-      (name !== initial.current.name || parent !== initial.current.parent) &&
-      !window.confirm(
-        'Descartar o rascunho da hierarquia e iniciar outra ação?',
-      )
-    )
-      return false;
+    if (!allowAction()) return false;
+    trigger.current = document.activeElement as HTMLElement | null;
     submitted.current = false;
     setError('');
 
@@ -316,13 +321,15 @@ export default function HierarchyNavigator({
             }
             aria-label={`${kind === 'detail' ? 'Abrir' : scopeDetailId ? 'Consultar' : 'Editar'} ${nouns[kind]} ${title}`}
             onDoubleClick={() => {
-              if (kind === 'detail') onEditDetail(id);
+              if (kind === 'detail') openDetail(() => onEditDetail(id));
             }}
             onClick={() => {
               if (kind === 'detail') {
                 const drawing = index.drawings.get(id)?.[0];
-                if (drawing) onOpenDrawing(drawing.id);
-                else onActive(id);
+                openDetail(() => {
+                  if (drawing) onOpenDrawing(drawing.id);
+                  else onActive(id);
+                });
               } else if (scopeDetailId)
                 setOpen((current) =>
                   current.includes(id)
@@ -368,7 +375,7 @@ export default function HierarchyNavigator({
               className="detail-edit-button"
               aria-label={`Abrir edição isolada de ${title}`}
               disabled={!!scopeDetailId}
-              onClick={() => onEditDetail(id)}
+              onClick={() => openDetail(() => onEditDetail(id))}
             >
               ↗
             </button>
