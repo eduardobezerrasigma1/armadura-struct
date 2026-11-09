@@ -652,11 +652,11 @@ export default function App() {
   const canvas = () => (activeSheet ? paperCanvas.current : cad.current);
   const captureDocument = (): DocumentSession => ({
     selected,
-    maskId,
+    maskId: maskOffset ? null : maskId,
     tool: nativeKind || tool === 'follow' ? 'select' : tool,
     draft: nativeKind ? [] : draft,
     page,
-    command: nativeKind ? '' : command,
+    command: nativeKind || maskOffset ? '' : command,
     detailId: activeDetailId,
     isolation: activeDrawing ? undefined : isolatedDetailId,
     camera: canvas()?.getState() ?? sessions.current.get(documentKey)?.camera,

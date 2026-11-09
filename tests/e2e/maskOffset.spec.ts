@@ -342,6 +342,18 @@ test('Troca de máscara/projeto cancela preparação; seleção residual de aço
   await start(page);
   await expect(panel(page)).toContainText('somente entidades');
   await choose(page);
+  const stable = await save(page);
+  await page.getByRole('tab', { name: 'Pranchas', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Abrir Folha 1', exact: true })
+    .click();
+  await expect(panel(page)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Desenho', exact: true }).click();
+  await save(page);
+  await page.keyboard.press('Delete');
+  expect((await save(page)).masks).toEqual(stable.masks);
+  await start(page);
+  await choose(page);
   const d = page.getByRole('region', {
     name: 'Destino do desenho de máscaras',
     exact: true,
