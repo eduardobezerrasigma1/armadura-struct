@@ -206,6 +206,8 @@ test('layer protegido não apaga; troca de projeto cancela conjunto e destino', 
 }) => {
   let p = maskManipFixture();
   p.masks[0].primitives[0].layerId = layerId('DESENHO');
+  // The second target must use an unlocked layer; implicit DESENHO is protected too.
+  p.masks[0].primitives[1].layerId = layerId('COTAS');
   p = setLayerState(p, 'model', layerId('DESENHO'), { editable: false });
   await open(page, p);
   const before = await save(page);

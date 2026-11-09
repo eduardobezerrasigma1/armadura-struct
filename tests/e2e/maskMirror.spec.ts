@@ -85,7 +85,16 @@ for (const remove of [false, true])
     await select(page);
     await command(page, '0,0');
     await command(page, '0,1000');
-    await expect(page.getByTestId('mirror-axis')).toBeVisible();
+    const axis = page.getByTestId('mirror-axis');
+    // A vertical SVG line has a zero-width DOM box; inspect its stroke/geometry.
+    await expect(axis).toHaveCount(1);
+    await expect(axis).toHaveAttribute('stroke', '#f59e0b');
+    await expect(axis).toHaveAttribute('x1', '0');
+    await expect(axis).toHaveAttribute('x2', '0');
+    expect(
+      Number(await axis.getAttribute('y2')) -
+        Number(await axis.getAttribute('y1')),
+    ).toBeGreaterThan(1000);
     await expect(
       panel(page).getByLabel('Apagar objetos de origem?', { exact: true }),
     ).toHaveValue('no');
