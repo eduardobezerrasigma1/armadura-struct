@@ -3945,3 +3945,13 @@ button.hierarchy-drawing {
 .mask-manip-list input {
   width: auto;
 }
+
+.match-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 5px 0;
+}
+.match-check input {
+  width: auto;
+}

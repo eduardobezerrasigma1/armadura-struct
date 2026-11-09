@@ -2,6 +2,7 @@
 
 ## Em desenvolvimento · 2026-11-08
 
+- Copiar propriedades gráficas entre entidades CAD, com escolha de atributos, ByLayer/overrides ou aparência resolvida, prévia e aplicação em lote sem alterar geometria ou quantitativos. [Uso e limites](docs/COPIAR-PROPRIEDADES.md).
 - Máscaras → Ferramentas → Offset: paralelas por distância com unidade ou dois pontos, seleção de entidade e lado físico, prévia cancelável e repetições com histórico por aplicação. Círculos, arcos e retângulos mantêm dados analíticos; contornos fechados podem se dividir em remanescentes. Preserva original, aço, RA/CSV, estilos e origem. [Uso, precisão e limites](docs/MASCARAS-OFFSET.md).
 - Máscaras → Manipular: Copiar e Apagar com seleção acumulada, pré-seleção, ponto base e destinos sucessivos, prévia cancelável, IDs independentes e transações atômicas. Preserva máscara vazia, aço, RA/CSV e cotas estáticas com orientação explícita. [Uso e contratos](docs/MASCARAS-COPIAR-APAGAR.md).
 - Máscaras: Ajustar (Aparar / Trim) e Estender (Extend), com limites finitos, prévia, seleção por clique/ID, operações sucessivas e histórico por corte/prolongamento. Referências de outras máscaras podem limitar; somente o alvo editável é alterado, sem aço adicional.

@@ -1,3 +1,13 @@
+import MatchPropertiesPanel, {
+  type MatchSession,
+} from './components/MatchPropertiesPanel';
+import {
+  graphicEntities,
+  previewMatchProperties,
+  applyMatchProperties,
+  type MatchPlan,
+  type GraphicRef,
+} from './domain/matchProperties';
 import MaskOffsetPanel, {
   type MaskOffsetSession,
 } from './components/MaskOffsetPanel';
@@ -394,6 +404,16 @@ export default function App() {
     null,
   );
   const [maskManip, setMaskManip] = useState<MaskManipSession | null>(null);
+  const [match, setMatch] = useState<
+    | (MatchSession & {
+        base: Project;
+        context: MaskDrawingContext;
+        activeMask?: string;
+        had: boolean;
+      })
+    | null
+  >(null);
+  const matchConsumed = useRef(false);
   const [maskOffset, setMaskOffset] = useState<MaskOffsetSession | null>(null);
   const offsetSuggestion = useRef('100 mm');
   const offsetConsumed = useRef(false);
@@ -652,11 +672,11 @@ export default function App() {
   const canvas = () => (activeSheet ? paperCanvas.current : cad.current);
   const captureDocument = (): DocumentSession => ({
     selected,
-    maskId: maskOffset ? null : maskId,
+    maskId: maskOffset || match ? null : maskId,
     tool: nativeKind || tool === 'follow' ? 'select' : tool,
     draft: nativeKind ? [] : draft,
     page,
-    command: nativeKind || maskOffset ? '' : command,
+    command: nativeKind || maskOffset || match ? '' : command,
     detailId: activeDetailId,
     isolation: activeDrawing ? undefined : isolatedDetailId,
     camera: canvas()?.getState() ?? sessions.current.get(documentKey)?.camera,
@@ -1037,6 +1057,7 @@ export default function App() {
     if (ids.length) setSidebarTab('properties');
   };
   const setTool = (t: Tool) => {
+    setMatch(null);
     if (maskOffset) {
       setMaskId(null);
       setNativeEntity(undefined);
@@ -1892,6 +1913,148 @@ export default function App() {
     setDraft([]);
     return true;
   };
+  const matchEntities = useMemo(
+    () => (match ? graphicEntities(p, maskDrawingContext, drawingMaskId) : []),
+    [p, documentKey, activeDetailId, isolatedDetailId, drawingMaskId, !!match],
+  );
+  const endMatch = () => {
+    setMatch(null);
+    setSelectedRaw([]);
+    setMaskId(null);
+    setNativeEntity(undefined);
+    setToolRaw('select');
+    setDraft([]);
+  };
+  const startMatch = () => {
+    if (activeSheet) {
+      notify('Abra um desenho antes de copiar propriedades.');
+      return;
+    }
+    setTool('select');
+    setSelectedRaw([]);
+    setMaskId(null);
+    setNativeEntity(undefined);
+    setMaskControl(false);
+    matchConsumed.current = false;
+    setMatch({
+      base: p,
+      context: { ...maskDrawingContext },
+      activeMask: drawingMaskId,
+      source: undefined,
+      targets: [],
+      stage: 'source',
+      options: {
+        mode: 'binding',
+        properties: ['color', 'lineType', 'lineScale', 'lineWidth'],
+      },
+      had: false,
+    });
+  };
+  const matchPreview = useMemo<{ plan?: MatchPlan; error?: string }>(() => {
+    if (!match?.source || match.stage !== 'targets' || !match.targets.length)
+      return {};
+    try {
+      return {
+        plan: previewMatchProperties(
+          p,
+          match.source,
+          match.targets,
+          match.options,
+          maskDrawingContext,
+          drawingMaskId,
+        ),
+      };
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  }, [match, p, documentKey, activeDetailId, isolatedDetailId, drawingMaskId]);
+  const applyMatch = () => {
+    if (!match || matchConsumed.current) return;
+    try {
+      if (
+        match.base !== historyRef.current.present ||
+        match.context.key !== documentKey ||
+        match.context.detailId !== activeDetailId ||
+        match.context.scopeDetailId !== isolatedDetailId ||
+        match.activeMask !== drawingMaskId
+      )
+        throw new Error(
+          'Contexto/projeto mudou; reinicie Copiar propriedades.',
+        );
+      if (!matchPreview.plan)
+        throw new Error(
+          matchPreview.error ?? 'Escolha fonte, propriedades e destinos.',
+        );
+      const next = applyMatchProperties(
+        historyRef.current.present,
+        matchPreview.plan,
+        maskDrawingContext,
+        drawingMaskId,
+      );
+      if (next === p) {
+        notify('Nenhuma propriedade mudou.');
+        return;
+      }
+      matchConsumed.current = true;
+      if (!commit(() => next)) {
+        matchConsumed.current = false;
+        return;
+      }
+      const base = historyRef.current.present;
+      const source = graphicEntities(
+        base,
+        maskDrawingContext,
+        drawingMaskId,
+      ).find((e) => e.key === match.source?.key);
+      setMatch({
+        ...match,
+        base,
+        source,
+        targets: [],
+        had: true,
+        issue: undefined,
+      });
+      notify(
+        'Propriedades aplicadas em um lote. Escolha novos destinos ou Esc para concluir.',
+      );
+    } catch (e) {
+      setMatch((v) => (v ? { ...v, issue: (e as Error).message } : v));
+    }
+  };
+  const pickMatch = (key: string) => {
+    if (!match || match.stage === 'properties') return;
+    const target = matchEntities.find((e) => e.key === key);
+    if (!target) return;
+    matchConsumed.current = false;
+    if (match.stage === 'source')
+      setMatch({
+        ...match,
+        source: target,
+        stage: 'properties',
+        issue: undefined,
+      });
+    else if (target.key !== match.source?.key)
+      setMatch({
+        ...match,
+        targets: match.targets.some((e) => e.key === key)
+          ? match.targets.filter((e) => e.key !== key)
+          : [...match.targets, target],
+        issue: undefined,
+      });
+  };
+  useEffect(() => {
+    if (
+      match &&
+      (match.base !== p ||
+        match.context.key !== documentKey ||
+        match.context.detailId !== activeDetailId ||
+        match.context.scopeDetailId !== isolatedDetailId ||
+        match.activeMask !== drawingMaskId)
+    ) {
+      endMatch();
+      notify('Copiar propriedades cancelado: contexto/projeto mudou.');
+    }
+  }, [match, p, documentKey, activeDetailId, isolatedDetailId, drawingMaskId]);
   const offsetEntities = useMemo(
     () => (maskOffset ? maskCadEntities(p, maskDrawingContext) : []),
     [p, documentKey, activeDetailId, isolatedDetailId, !!maskOffset],
@@ -2914,6 +3077,12 @@ export default function App() {
     }
   }, [nativeKind, nativeTarget]);
   const finish = () => {
+    if (match) {
+      if (match.stage === 'targets') applyMatch();
+      else if (match.stage === 'properties')
+        setMatch({ ...match, stage: 'targets' });
+      return;
+    }
     if (maskOffset) {
       if (maskOffset.stage === 'distance') confirmOffsetDistance();
       else endMaskOffset();
@@ -2973,6 +3142,7 @@ export default function App() {
     } else setDraft([]);
   };
   const onPoint = (point: Point) => {
+    if (match) return;
     if (maskOffset) {
       offsetPoint(
         point,
@@ -3553,6 +3723,31 @@ export default function App() {
     return true;
   };
   const action = async (a: Action) => {
+    if (a === 'match-properties') {
+      startMatch();
+      return;
+    }
+    if (match) {
+      if (['undo', 'redo'].includes(a)) {
+        const had = match.had;
+        endMatch();
+        if (!had) return;
+      } else if (
+        ![
+          'fit',
+          'grid',
+          'snap',
+          'ortho',
+          'dimensions',
+          'sidebar',
+          'focus',
+          'save',
+        ].includes(a)
+      ) {
+        endMatch();
+        return;
+      }
+    }
     if (a === 'mask-offset') {
       startMaskOffset();
       return;
@@ -4435,6 +4630,8 @@ export default function App() {
       L: 'bar',
       MASCARAS: 'mask-control',
       CALIBRARMASCARA: 'mask-calibrate',
+      MATCHPROP: 'match-properties',
+      COPIARPROPRIEDADES: 'match-properties',
       OFFSET: 'mask-offset',
       PARALELA: 'mask-offset',
       APAGARMASCARA: 'mask-erase',
@@ -4595,6 +4792,11 @@ export default function App() {
         'input,textarea,select',
       );
       if (e.key === 'Escape') {
+        if (match) {
+          endMatch();
+          cmdInput.current?.blur();
+          return;
+        }
         if (maskOffset) {
           endMaskOffset();
           cmdInput.current?.blur();
@@ -5276,34 +5478,44 @@ export default function App() {
                 }
                 maskSidePick={maskOffset?.stage === 'side'}
                 maskEditing={
-                  maskOffset?.stage === 'entity'
+                  match && match.stage !== 'properties'
                     ? {
-                        entities: offsetEntities,
-                        targetMaskId: maskOffset.maskId,
+                        entities: maskCadEntities(p, maskDrawingContext),
+                        targetMaskId: drawingMaskId,
                         stage: 'targets',
                       }
-                    : maskManip?.stage === 'selection'
+                    : maskOffset?.stage === 'entity'
                       ? {
-                          entities: manipEntities,
-                          targetMaskId: maskManip.maskId,
+                          entities: offsetEntities,
+                          targetMaskId: maskOffset.maskId,
                           stage: 'targets',
                         }
-                      : maskCad
+                      : maskManip?.stage === 'selection'
                         ? {
-                            entities: cadMaskEntities,
-                            targetMaskId: maskCad.maskId,
-                            all: maskCad.all,
-                            stage: maskCad.stage,
-                            selectedTarget: maskCad.selectedTarget,
+                            entities: manipEntities,
+                            targetMaskId: maskManip.maskId,
+                            stage: 'targets',
                           }
-                        : undefined
+                        : maskCad
+                          ? {
+                              entities: cadMaskEntities,
+                              targetMaskId: maskCad.maskId,
+                              all: maskCad.all,
+                              stage: maskCad.stage,
+                              selectedTarget: maskCad.selectedTarget,
+                            }
+                          : undefined
                 }
                 onMaskEntityPick={
-                  maskOffset
-                    ? (ref, at, tolerance) => offsetPoint(at, ref, tolerance)
-                    : maskManip
-                      ? (ref) => toggleManipEntity(ref)
-                      : pickMaskCad
+                  match
+                    ? (ref) => {
+                        if (ref) pickMatch(ref.key);
+                      }
+                    : maskOffset
+                      ? (ref, at, tolerance) => offsetPoint(at, ref, tolerance)
+                      : maskManip
+                        ? (ref) => toggleManipEntity(ref)
+                        : pickMaskCad
                 }
                 onMaskEntityHover={(ref, at, tolerance) =>
                   maskOffset?.stage === 'side'
@@ -5384,6 +5596,7 @@ export default function App() {
                       transformRequest?.base)
                 }
                 commandActive={
+                  !!match ||
                   !!maskOffset ||
                   !!maskManip ||
                   !!maskCad ||
@@ -5401,10 +5614,11 @@ export default function App() {
                 key={`${p.id}:${sessionsProject.current === p.id ? 'ready' : 'loading'}:${documentKey}`}
                 initialState={sessions.current.get(documentKey)?.camera}
                 ref={cad}
-                project={p}
+                project={matchPreview.plan?.project ?? p}
                 isolatedDetailId={isolatedDetailId}
                 onEditDetail={beginDetailEdit}
                 tool={
+                  match ||
                   maskOffset ||
                   maskManip ||
                   maskCad ||
@@ -5463,6 +5677,20 @@ export default function App() {
                 }}
                 showDimensions={dimensions}
               />
+              {match && (
+                <MatchPropertiesPanel
+                  session={match}
+                  entities={matchEntities}
+                  plan={matchPreview.plan}
+                  error={matchPreview.error}
+                  onChange={(value) => {
+                    matchConsumed.current = false;
+                    setMatch({ ...match, ...value });
+                  }}
+                  onApply={applyMatch}
+                  onEnd={endMatch}
+                />
+              )}
               {maskOffset && (
                 <MaskOffsetPanel
                   session={maskOffset}

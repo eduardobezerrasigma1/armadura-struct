@@ -1,0 +1,207 @@
+import { describe, it, expect } from 'vitest';
+import { maskManipFixture } from './fixtures/maskManipulation';
+import {
+  graphicEntities,
+  previewMatchProperties,
+  applyMatchProperties,
+  type MatchOptions,
+} from '../src/domain/matchProperties';
+import { decodeProject } from '../src/domain/model';
+import { toCsv, toDxf, toPdf } from '../src/lib/exports';
+import { setLayerState } from '../src/domain/layerProfiles';
+const setup = () => {
+  const p = maskManipFixture();
+  const ctx = {
+    key: 'model',
+    detailId: p.hierarchy.objectDetails[p.masks[0].id],
+  };
+  return { p, ctx, active: p.masks[0].id };
+};
+const options: MatchOptions = {
+  mode: 'binding',
+  properties: ['color', 'lineType', 'lineWidth', 'lineScale'],
+};
+describe('Copiar propriedades gráficas', () => {
+  it('prévia pura e aplicação parcial preservam geometria, IDs, aço, RA e CSV', () => {
+    const { p, ctx, active } = setup();
+    p.masks[0].primitives[0].style = {
+      color: '#123456',
+      lineWidth: 0.5,
+      lineScale: 2,
+      lineType: { name: 'DASHED', pattern: [100, -50] },
+    };
+    const all = graphicEntities(p, ctx, active),
+      source = all.find((e) => e.object.id === 'line')!,
+      target = all.find((e) => e.object.id === 'circle')!;
+    const before = JSON.stringify(p);
+    const plan = previewMatchProperties(
+      p,
+      source,
+      [target],
+      options,
+      ctx,
+      active,
+    );
+    expect(JSON.stringify(p)).toBe(before);
+    const q = applyMatchProperties(p, plan, ctx, active);
+    expect(q.masks[0].primitives[1].style).toEqual(
+      p.masks[0].primitives[0].style,
+    );
+    expect(q.masks[0].primitives[1].native).toEqual(
+      p.masks[0].primitives[1].native,
+    );
+    expect(q.masks[0].primitives[1].id).toBe('circle');
+    expect(q.masks[0].primitives[2]).toBe(p.masks[0].primitives[2]);
+    expect(q.bars).toEqual(p.bars);
+    expect(q.scheduleLock).toBe(p.scheduleLock);
+    expect(toCsv(q)).toBe(toCsv(p));
+    expect(q.masks[1]).toBe(p.masks[1]);
+    expect(decodeProject(JSON.stringify(q)).masks).toEqual(q.masks);
+    expect(toDxf(q)).toContain('DASHED');
+    expect(toPdf(q).length).toBeGreaterThan(100);
+  });
+  it.each(['binding', 'resolved'] as const)(
+    'ByLayer e aparência resolvida: %s',
+    (mode) => {
+      const { p, ctx, active } = setup();
+      p.masks[0].primitives[1].style = { color: '#ff0000' };
+      const all = graphicEntities(p, ctx, active);
+      const source = all.find((e) => e.object.id === 'line')!,
+        target = all.find((e) => e.object.id === 'circle')!;
+      const q = applyMatchProperties(
+        p,
+        previewMatchProperties(
+          p,
+          source,
+          [target],
+          { mode, properties: ['color'] },
+          ctx,
+          active,
+        ),
+        ctx,
+        active,
+      );
+      expect(q.masks[0].primitives[1].style?.color === undefined).toBe(
+        mode === 'binding',
+      );
+      expect(
+        decodeProject(JSON.stringify(q)).masks[0].primitives[1].style,
+      ).toEqual(q.masks[0].primitives[1].style);
+    },
+  );
+  it('altura de texto usa mm físicos; alinhamento é compatível somente entre textos de máscara', () => {
+    const { p, ctx, active } = setup();
+    p.masks[0].scale = 2;
+    p.masks[0].format = 'DXF';
+    p.masks[0].primitives = [
+      {
+        id: 'text',
+        layer: 'DESENHO',
+        points: [{ x: 0, y: 0 }],
+        text: 'Fonte',
+        textHeight: 4,
+        textAlign: 'right',
+      },
+    ];
+    const all = graphicEntities(p, ctx, active),
+      source = all.find((e) => e.object.id === 'text')!,
+      target = all.find((e) => e.object.id === 'static-dimension')!;
+    const plan = previewMatchProperties(
+      p,
+      source,
+      [target],
+      { mode: 'binding', properties: ['textHeight'] },
+      ctx,
+      active,
+    );
+    expect(plan.project.annotations[0].textHeight).toBe(8);
+    expect(() =>
+      previewMatchProperties(
+        p,
+        source,
+        [target],
+        { mode: 'binding', properties: ['textAlign'] },
+        ctx,
+        active,
+      ),
+    ).toThrow(/incompatível/);
+  });
+  it('atributos gráficos de uma barra não alteram os parâmetros físicos', () => {
+    const { p, ctx, active } = setup();
+    p.masks[0].primitives[0].style = { color: '#123456' };
+    const all = graphicEntities(p, ctx, active);
+    const plan = previewMatchProperties(
+      p,
+      all.find((e) => e.object.id === 'line')!,
+      [all.find((e) => e.owner === p.bars[0].id)!],
+      { mode: 'resolved', properties: ['color'] },
+      ctx,
+      active,
+    );
+    expect({ ...plan.project.bars[0], style: p.bars[0].style }).toEqual(
+      p.bars[0],
+    );
+    expect(toCsv(plan.project)).toBe(toCsv(p));
+  });
+  it('recusa lote incompatível, repetido, protegido, seleção da fonte e mudança de contexto', () => {
+    const { p, ctx, active } = setup();
+    const all = graphicEntities(p, ctx, active),
+      source = all.find((e) => e.object.id === 'line')!,
+      target = all.find((e) => e.object.id === 'circle')!;
+    for (const dest of [[], [source], [target, target]])
+      expect(() =>
+        previewMatchProperties(p, source, dest, options, ctx, active),
+      ).toThrow();
+    expect(() =>
+      previewMatchProperties(
+        p,
+        source,
+        [target],
+        { ...options, properties: ['textHeight'] },
+        ctx,
+        active,
+      ),
+    ).toThrow(/incompatível/);
+    const plan = previewMatchProperties(
+      p,
+      source,
+      [target],
+      options,
+      ctx,
+      active,
+    );
+    expect(() => applyMatchProperties({ ...p }, plan, ctx, active)).toThrow(
+      /mudou/,
+    );
+    expect(() =>
+      applyMatchProperties(p, plan, { ...ctx, key: 'sheet:x' }, active),
+    ).toThrow();
+    expect(
+      graphicEntities(p, { ...ctx, scopeDetailId: 'other' }, active),
+    ).toHaveLength(0);
+    const locked = setLayerState(
+      p,
+      'model',
+      p.layers.find((l) => l.name === 'DESENHO')!.id,
+      { editable: false },
+    );
+    expect(() =>
+      previewMatchProperties(locked, source, [target], options, ctx, active),
+    ).toThrow();
+  });
+  it('override global da máscara e layer de destino bloqueado recebem aviso antes do commit', () => {
+    const { p, ctx, active } = setup();
+    p.masks[0].style = { color: '#111111' };
+    const all = graphicEntities(p, ctx, active);
+    expect(() =>
+      previewMatchProperties(
+        p,
+        all.find((e) => e.object.id === 'line')!,
+        [all.find((e) => e.object.id === 'circle')!],
+        options,
+        ctx,
+        active,
+      ),
+    ).toThrow(/global/);
+  });
+});

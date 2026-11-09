@@ -12,6 +12,8 @@ CAD 2D de armaduras do ecossistema [OpenStruct](https://openstruct.com.br), com 
 
 ## Recursos
 
+- [Copiar propriedades gráficas](docs/COPIAR-PROPRIEDADES.md): fonte, atributos compatíveis, destinos e prévia, com ByLayer ou aparência resolvida e histórico atômico.
+
 - [Offset de entidades de máscaras](docs/MASCARAS-OFFSET.md): distância explícita ou por dois pontos, seleção e lado físico, prévia, repetições e contornos com remanescentes, sem gerar aço.
 
 - [Copiar e Apagar entidades de máscaras](docs/MASCARAS-COPIAR-APAGAR.md): seleção acumulada no CAD, base comum e múltiplos destinos, prévia, histórico e proteções, sem alterar aço.

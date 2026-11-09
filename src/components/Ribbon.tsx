@@ -47,6 +47,7 @@ export type Action =
   | 'cad-settings'
   | 'mask-control'
   | 'mask-calibrate'
+  | 'match-properties'
   | 'mask-offset'
   | 'mask-trim'
   | 'mask-extend'
@@ -202,6 +203,7 @@ export default function Ribbon({
       {
         name: 'Ferramentas',
         items: [
+          item('match-properties', 'Copiar propriedades', Copy),
           item('mask-calibrate', 'Ajustar escala', Ruler),
           {
             ...item('mask-offset', 'Offset — Paralelas de máscara', Copy),
@@ -285,7 +287,13 @@ export default function Ribbon({
       },
     ],
     Desenho: [
-      { name: 'Layers', items: [item('layers', 'Gerenciar layers', Layers)] },
+      {
+        name: 'Layers',
+        items: [
+          item('match-properties', 'Copiar propriedades', Copy),
+          item('layers', 'Gerenciar layers', Layers),
+        ],
+      },
       {
         name: 'Anotar',
         items: [
