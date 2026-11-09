@@ -199,14 +199,16 @@ export default function HierarchyNavigator({
         : kind === 'detail'
           ? h.details.find((d) => d.id === id)?.elementId
           : undefined;
+    const context = editor?.id
+      ? { kind: editor.kind, id: editor.id }
+      : lastCreated.current;
     const destination =
       parentOverride ||
       existingParent ||
-      (kind === 'element' && (editor ?? lastCreated.current)?.kind === 'floor'
-        ? (editor ?? lastCreated.current)!.id!
-        : kind === 'detail' &&
-            (editor ?? lastCreated.current)?.kind === 'element'
-          ? (editor ?? lastCreated.current)!.id!
+      (kind === 'element' && context?.kind === 'floor'
+        ? context.id
+        : kind === 'detail' && context?.kind === 'element'
+          ? context.id
           : kind === 'element'
             ? activeElement.floorId
             : active.elementId);
