@@ -228,6 +228,33 @@ export async function saveProjectFolder(p: Project): Promise<boolean> {
   }
 }
 
+/** Explicit reauthorization may retain dirty edits when the last observed disk snapshot matches. */
+export async function associateProjectFolder(
+  p: Project,
+  folder: ProjectFolder,
+  isCurrent: () => boolean = () => true,
+) {
+  const previous = bindings.get(p);
+  if (previous) await previous.tail.catch(() => {});
+  if (!isCurrent()) throw Error('O projeto mudou; localize novamente a pasta.');
+  const raw = await folder.read();
+  if (!isCurrent()) throw Error('O projeto mudou; localize novamente a pasta.');
+  if (raw === undefined) {
+    await createProjectInFolder(p, folder);
+    return;
+  }
+  const saved = decodeProject(raw);
+  if (
+    saved.id !== p.id ||
+    (raw !== previous?.expected && JSON.stringify(saved) !== JSON.stringify(p))
+  )
+    throw Error(
+      'Arquivo diferente: abra o existente pelo Novo projeto ou escolha outra pasta. Nenhuma fusão foi aplicada.',
+    );
+  attachProjectFolder(p, folder, raw);
+  await saveProjectFolder(p);
+}
+
 function hintHash(p: Project) {
   const s = JSON.stringify(p);
   let h = 2166136261;

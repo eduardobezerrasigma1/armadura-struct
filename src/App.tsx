@@ -1,6 +1,7 @@
 import { isTauri } from '@tauri-apps/api/core';
 import {
   folderHint,
+  associateProjectFolder,
   folderAvailable,
   hasPendingFolderWrites,
   inheritProjectFolder,
@@ -6560,9 +6561,9 @@ export default function App() {
         <details
           className="folder-menu"
           onKeyDown={(e) => {
+            e.stopPropagation();
             if (e.key === 'Escape') {
               e.preventDefault();
-              e.stopPropagation();
               e.currentTarget.open = false;
               e.currentTarget.querySelector('summary')?.focus();
             }
@@ -6582,19 +6583,11 @@ export default function App() {
                   const base = historyRef.current.present,
                     folder = await pickProjectFolder();
                   if (!folder || historyRef.current.present !== base) return;
-                  const raw = await folder.read();
-                  if (historyRef.current.present !== base) return;
-                  if (raw !== undefined) {
-                    if (
-                      decodeProject(raw).id !== base.id ||
-                      JSON.stringify(decodeProject(raw)) !==
-                        JSON.stringify(base)
-                    )
-                      throw Error(
-                        'Arquivo diferente: abra o existente pelo Novo projeto ou escolha outra pasta.',
-                      );
-                    attachProjectFolder(base, folder, raw);
-                  } else await createProjectInFolder(base, folder);
+                  await associateProjectFolder(
+                    base,
+                    folder,
+                    () => historyRef.current.present === base,
+                  );
                   if (historyRef.current.present !== base) return;
                   setFolderEpoch((n) => n + 1);
                   setSaveState('Salvo na pasta do projeto');

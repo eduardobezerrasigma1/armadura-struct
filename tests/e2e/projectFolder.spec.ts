@@ -124,6 +124,7 @@ test('escolha é rascunho, cancelar mantém arquivos/projeto e criar salva no lo
   expect(disk.bars).toEqual([]);
   expect(await copy(page)).toEqual(disk);
   expect((await mock(page)).dirsA).toEqual(['save-v1']);
+  await files(page);
   await page.screenshot({
     path: 'docs/project-folder-saved.png',
     fullPage: true,
@@ -136,6 +137,13 @@ test('A/B, edição, histórico, cópia importada e reautorização após recarr
   await command(page, 'B');
   await command(page, '0,0');
   await command(page, '1000,0');
+  // Keyboard activation of the file disclosure is a query, never a CAD Enter.
+  const summary = page.locator('.folder-menu > summary');
+  await summary.focus();
+  await summary.press('Enter');
+  await expect(page.locator('.folder-actions')).toBeVisible();
+  await summary.press('Escape');
+  expect((await copy(page)).bars).toHaveLength(0);
   await command(page, '');
   await page.keyboard.press('Escape');
   await expect

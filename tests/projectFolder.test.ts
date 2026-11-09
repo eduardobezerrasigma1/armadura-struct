@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { decodeProject, emptyProject, schedule } from '../src/domain/model';
 import {
   managedNameConflict,
+  associateProjectFolder,
   createProjectInFolder,
   saveProjectFolder,
   pickProjectFolder,
@@ -41,6 +42,31 @@ async function folder() {
   return (await pickProjectFolder())!;
 }
 describe('contrato da pasta e snapshots', () => {
+  it('reautoriza uma sessão com edições pendentes apenas se o disco ainda corresponde ao baseline', async () => {
+    const p = project(),
+      root = await folder();
+    await createProjectInFolder(p, root);
+    const dirty = { ...p, name: 'Edição sem acesso' };
+    inheritProjectFolder(p, dirty, dirty);
+    fs.denied = true;
+    await expect(saveProjectFolder(dirty)).rejects.toThrow();
+    fs.denied = false;
+    await associateProjectFolder(dirty, await folder());
+    expect(decodeProject(fs.roots.A.files.get(PROJECT_FILE)!).name).toBe(
+      dirty.name,
+    );
+    const altered = JSON.stringify({ ...dirty, name: 'Edição externa' });
+    fs.roots.A.files.set(PROJECT_FILE, altered);
+    await expect(associateProjectFolder(dirty, await folder())).rejects.toThrow(
+      'Arquivo diferente',
+    );
+    expect(fs.roots.A.files.get(PROJECT_FILE)).toBe(altered);
+    const detached = decodeProject(JSON.stringify(dirty));
+    await expect(
+      associateProjectFolder(detached, await folder()),
+    ).rejects.toThrow('Arquivo diferente');
+  });
+
   it.each(['SAVE-V1', 'save-v1.', 'save-v1 ', 'ſave-v1'])(
     'recusa alias portátil de nome administrado %s sem tocar arquivos',
     async (alias) => {
