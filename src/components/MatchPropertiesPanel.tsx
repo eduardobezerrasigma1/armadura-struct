@@ -33,7 +33,9 @@ export default function MatchPropertiesPanel({
   const [query, setQuery] = useState('');
   const list = entities
     .filter((e) =>
-      e.label.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+      `${e.label} ${e.key}`
+        .toLocaleLowerCase()
+        .includes(query.toLocaleLowerCase()),
     )
     .slice(0, 200);
   return (
@@ -93,7 +95,7 @@ export default function MatchPropertiesPanel({
           >
             <option value="">Escolher entidade</option>
             {list.map((e) => (
-              <option key={e.key} value={e.key}>
+              <option key={e.key} value={e.key} title={e.key}>
                 {e.label}
               </option>
             ))}
@@ -167,7 +169,7 @@ export default function MatchPropertiesPanel({
             {list
               .filter((e) => e.key !== s.source?.key)
               .map((e) => (
-                <label key={e.key}>
+                <label key={e.key} title={e.key}>
                   <input
                     type="checkbox"
                     checked={s.targets.some((q) => q.key === e.key)}

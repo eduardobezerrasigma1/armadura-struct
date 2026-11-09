@@ -131,6 +131,17 @@ describe('Copiar propriedades gráficas', () => {
       p.masks[0].primitives[1].native,
     );
   });
+  it('objetos com a mesma marca têm IDs e rótulos distintos para escolha explícita', () => {
+    const { p, ctx, active } = setup();
+    const bar = { ...p.bars[0], id: 'another-bar' };
+    p.bars.push(bar);
+    p.hierarchy.objectDetails[bar.id] = ctx.detailId;
+    const all = graphicEntities(p, ctx, active).filter((e) =>
+      p.bars.some((b) => b.id === e.owner),
+    );
+    expect(new Set(all.map((e) => e.label)).size).toBe(2);
+    expect(new Set(all.map((e) => e.key)).size).toBe(2);
+  });
   it('altura de texto usa mm físicos; alinhamento é compatível somente entre textos de máscara', () => {
     const { p, ctx, active } = setup();
     p.masks[0].scale = 2;

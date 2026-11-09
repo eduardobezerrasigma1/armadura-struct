@@ -63,7 +63,7 @@ export function graphicEntities(
     )
     .map((o) => ({
       key: o.id,
-      label: `${objectRole(p, o)} · ${'mark' in o ? o.mark : 'label' in o ? o.label : o.id.slice(0, 8)}`,
+      label: `${objectRole(p, o)} · ${'mark' in o ? o.mark : 'label' in o ? o.label : o.id.slice(0, 8)} · [${o.id.slice(0, 8)}]`,
       object: o,
       owner: o.id,
       role: objectRole(p, o),
