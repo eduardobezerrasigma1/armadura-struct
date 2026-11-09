@@ -1,3 +1,4 @@
+import { configureStirrupSection } from './stirrup.helpers';
 import { confirmMaskImport } from './maskBatch.helpers';
 import {
   confirmProjectReplacement,
@@ -59,11 +60,11 @@ test('CAD completo: desenhar, quantificar, rebater, distribuir, desfazer e reabr
   saved = await saveProject(page);
   expect(saved.bars[0].distribution).toBeUndefined();
   await page.getByRole('button', { name: 'Refazer', exact: true }).click();
-  await command(page, 'E');
+  await configureStirrupSection(page);
   await command(page, '1500,0');
-  await command(page, '1800,500');
+  await command(page, '');
   await page.keyboard.press('Escape');
-  await expect(page.getByLabel('Largura no eixo')).toHaveValue('300');
+  expect((await saveProject(page)).bars[1].width).toBe(300);
   const before = await saveProject(page);
   expect(before.bars).toHaveLength(2);
   await page.getByTestId('project-input').setInputFiles({

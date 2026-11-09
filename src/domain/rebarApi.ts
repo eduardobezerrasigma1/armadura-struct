@@ -1,3 +1,8 @@
+import {
+  stirrupProfileSchema,
+  stirrupDisplaySchema,
+  distributionShape,
+} from './stirrupSchema';
 import { barCadDefaults, representationCadDefaults } from './cadDefaults';
 import { alignSelection, alignmentSchema } from './alignment';
 import { editVertices, vertexEditSchema } from './vertices';
@@ -57,6 +62,12 @@ export const REBAR_CAPABILITIES = Object.freeze({
     presets: ['color', 'monochrome', 'grayscale'] as const,
   }),
   families: Object.freeze(['free', 'stirrup'] as const),
+  stirrupProfiles: Object.freeze(['rectangle', 'circle', 'free'] as const),
+  stirrupHooks: Object.freeze({
+    angles: [0, 90, 135, 180] as const,
+    units: ['mm', 'diameters'] as const,
+  }),
+  distributionFits: Object.freeze(['maximum', 'fixed'] as const),
   operations: Object.freeze([
     'bar.create',
     'bar.update',
@@ -145,6 +156,8 @@ const definition = z.discriminatedUnion('kind', [
       ...common,
       kind: z.literal('stirrup'),
       stirrupMirrored: z.boolean().optional(),
+      stirrupProfile: stirrupProfileSchema.optional(),
+      stirrupDisplay: stirrupDisplaySchema.optional(),
       width: number.positive(),
       height: number.positive(),
       hook: number.nonnegative(),
@@ -165,19 +178,15 @@ const patch = z.discriminatedUnion('kind', [
       ...optionalCommon,
       kind: z.literal('stirrup'),
       stirrupMirrored: z.boolean().optional(),
+      stirrupProfile: stirrupProfileSchema.optional(),
+      stirrupDisplay: stirrupDisplaySchema.optional(),
       width: number.positive().optional(),
       height: number.positive().optional(),
       hook: number.nonnegative().optional(),
     })
     .strict(),
 ]);
-const distribution = z
-  .object({
-    start: point.optional(),
-    end: point,
-    render: z.enum(['ticks', 'bars']).optional(),
-  })
-  .strict();
+const distribution = z.object(distributionShape).strict();
 const sharedPolicy = z.enum(['keep', 'clone-set']);
 const positionPolicy = z.enum(['new', 'equivalent']);
 const commandSchema = z.discriminatedUnion('type', [
@@ -302,7 +311,11 @@ const commandSchema = z.discriminatedUnion('type', [
           })
           .strict(),
         z
-          .object({ mode: z.literal('spacing'), spacing: number.positive() })
+          .object({
+            mode: z.literal('spacing'),
+            spacing: number.positive(),
+            fit: z.enum(['maximum', 'fixed']).optional(),
+          })
           .strict(),
       ]),
     })
@@ -960,7 +973,7 @@ function perform(
       length = distance(c.distribution.start ?? b.origin, c.distribution.end);
     const quantity =
       c.count.mode === 'spacing'
-        ? quantityForSpacing(length, c.count.spacing)
+        ? quantityForSpacing(length, c.count.spacing, c.count.fit)
         : c.count.quantity;
     const quantitySource =
       c.count.mode === 'manual'
@@ -970,6 +983,7 @@ function perform(
               kind: 'distribution' as const,
               mode: 'spacing' as const,
               spacing: c.count.spacing,
+              ...(c.count.fit ? { fit: c.count.fit } : {}),
             }
           : { kind: 'distribution' as const, mode: 'quantity' as const };
     next = replace(p, {
@@ -1340,6 +1354,8 @@ export function rebarDefinition(bar: Bar): RebarDefinition {
         ...common,
         kind: 'stirrup',
         stirrupMirrored: bar.stirrupMirrored,
+        stirrupProfile: bar.stirrupProfile,
+        stirrupDisplay: bar.stirrupDisplay,
         width: bar.width,
         height: bar.height,
         hook: bar.hook,

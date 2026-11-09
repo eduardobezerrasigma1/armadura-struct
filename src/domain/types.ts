@@ -46,6 +46,10 @@ export type Bar = LayerBinding & {
   element: string;
   kind: 'free' | 'stirrup';
   stirrupMirrored?: boolean;
+  stirrupProfile?: import('./stirrupSchema').StirrupProfile;
+  stirrupDisplay?: import('zod').infer<
+    typeof import('./stirrupSchema').stirrupDisplaySchema
+  >;
   origin: Point;
   rotation: number;
   points: Point[];
@@ -65,7 +69,13 @@ export type Bar = LayerBinding & {
   showRibbed?: boolean;
   /** Textual assembly reference, independent of floor identity and structural checks. */
   columnLevel?: string;
-  distribution?: { start?: Point; end: Point; render?: 'ticks' | 'bars' };
+  distribution?: {
+    start?: Point;
+    end: Point;
+    render?: 'ticks' | 'bars';
+    annotationOffset?: number;
+    insets?: { start: number; end: number };
+  };
   color: string;
   /** Fabrication specifications; no implicit added geometry or cut allowance. */
   manufacturing?: {
@@ -77,7 +87,12 @@ export type Bar = LayerBinding & {
 export type BarQuantitySource =
   | { kind: 'manual' }
   | { kind: 'distribution'; mode: 'quantity' }
-  | { kind: 'distribution'; mode: 'spacing'; spacing: number };
+  | {
+      kind: 'distribution';
+      mode: 'spacing';
+      spacing: number;
+      fit?: 'maximum' | 'fixed';
+    };
 export type BarTermination = {
   kind: 'plain' | 'coupler' | 'threaded' | 'headed';
   code: string;
@@ -257,7 +272,8 @@ export type DraftPolyline = LayerBinding & {
   color: string;
 };
 export type Project = {
-  schema: 'armadurastruct/24';
+  schema: 'armadurastruct/25';
+  stirrupDefaults?: import('./stirrupSchema').StirrupCriteria;
   cadDefaults?: import('./cadDefaults').CadDefaults;
   plotting?: PlotSettings;
   layerEnvironment?: import('./layerProfiles').LayerEnvironment;

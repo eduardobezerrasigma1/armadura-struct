@@ -194,3 +194,11 @@ export {
   representationCadDefaults,
 } from './domain/cadDefaults';
 export type { CadDefaults, CadCategory } from './domain/cadDefaults';
+
+export {
+  criteriaBar,
+  criteriaFromBar,
+  withStirrupRange,
+} from './domain/stirrups';
+export { defaultStirrupCriteria } from './domain/stirrupSchema';
+export type { StirrupCriteria, StirrupProfile } from './domain/stirrupSchema';

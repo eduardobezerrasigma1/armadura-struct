@@ -16,6 +16,9 @@ const knownBarFields = new Set([
   'element',
   'kind',
   'stirrupMirrored',
+  'stirrupProfile',
+  'stirrupDisplay',
+  'drafting',
   'origin',
   'rotation',
   'points',
@@ -64,6 +67,62 @@ export function fabricationSignature(
     return undefined;
   const g = geometry(b);
   if (g.errors.length || !Number.isFinite(g.length)) return undefined;
+  if (b.stirrupProfile) {
+    const signature = (reversed: boolean) => {
+      const segs = reversed
+        ? [...g.segments].reverse().map((s) =>
+            s.type === 'line'
+              ? { ...s, a: s.b, b: s.a }
+              : {
+                  ...s,
+                  a: s.b,
+                  b: s.a,
+                  startAngle: s.startAngle + s.angle,
+                  angle: -s.angle,
+                },
+          )
+        : g.segments;
+      const tangent = (s: (typeof segs)[number], end: boolean) =>
+        s.type === 'line'
+          ? Math.atan2(s.b.y - s.a.y, s.b.x - s.a.x)
+          : s.startAngle +
+            (end ? s.angle : 0) +
+            (Math.sign(s.angle) * Math.PI) / 2;
+      const turns = segs.slice(1).map((s, i) => {
+        const a = tangent(s, false) - tangent(segs[i], true);
+        return q(
+          Math.atan2(Math.sin(a), Math.cos(a)),
+          FABRICATION_RULES.angleGrid,
+        );
+      });
+      const ends = reversed
+        ? [b.manufacturing?.end, b.manufacturing?.start]
+        : [b.manufacturing?.start, b.manufacturing?.end];
+      return JSON.stringify({
+        family: 'parametric-stirrup',
+        steel: b.steel,
+        diameter: q(b.diameter, 0.001),
+        mandrel: q(b.mandrel, 0.001),
+        segments: segs.map((s) =>
+          s.type === 'line'
+            ? ['line', q(Math.hypot(s.b.x - s.a.x, s.b.y - s.a.y), 0.001)]
+            : [
+                'arc',
+                q(s.radius, 0.001),
+                q(s.angle, FABRICATION_RULES.angleGrid),
+              ],
+        ),
+        turns,
+        ends: ends.map((t) =>
+          t?.kind && t.kind !== 'plain' ? [t.kind, t.code] : ['plain'],
+        ),
+        variant: b.manufacturing?.variant ?? '',
+      });
+    };
+    return reverse
+      ? [signature(false), signature(true)].sort()[0]
+      : signature(false);
+  }
   const vs = vertices(b);
   const shape = (points: typeof vs, reversed: boolean) => {
     const edges = points

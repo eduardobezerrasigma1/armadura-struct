@@ -66,7 +66,7 @@ test('hierarchy CRUD, same-named elements, ownership, reparenting and persistent
     detailId = before.hierarchy.details.find(
       (d: any) => d.name === 'V1 superior',
     ).id;
-  expect(before.schema).toBe('armadurastruct/24');
+  expect(before.schema).toBe('armadurastruct/25');
   expect(
     before.hierarchy.elements.filter((e: any) => e.name === 'V1'),
   ).toHaveLength(2);

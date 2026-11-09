@@ -1,3 +1,4 @@
+import { stirrupGeometry } from './stirrupGeometry';
 import type { Bar, Geometry, Point, Segment } from './types';
 export const add = (a: Point, b: Point): Point => ({
   x: a.x + b.x,
@@ -39,6 +40,7 @@ export const format = (n: number, digits = 1) => {
   return formatter.format(n);
 };
 export function vertices(bar: Bar): Point[] {
+  if (bar.stirrupProfile) return stirrupGeometry(bar).vertices;
   if (bar.kind === 'free') return bar.points;
   const r = (bar.mandrel + bar.diameter) / 2;
   const h = (bar.hook + r * Math.tan((3 * Math.PI) / 8)) / Math.SQRT2;
@@ -57,10 +59,12 @@ export function vertices(bar: Bar): Point[] {
 }
 /** Physical centerline: trim straight legs by R tan(theta/2), then insert circular bends. */
 export function geometry(bar: Bar): Geometry {
-  const pts = vertices(bar);
+  if (bar.stirrupProfile) return stirrupGeometry(bar);
+  return geometryFromPoints(vertices(bar), (bar.mandrel + bar.diameter) / 2);
+}
+export function geometryFromPoints(pts: Point[], r: number): Geometry {
   const errors: string[] = [];
   const segments: Segment[] = [];
-  const r = (bar.mandrel + bar.diameter) / 2;
   if (pts.length < 2)
     return {
       segments,

@@ -176,7 +176,7 @@ describe('Medir e cotar referências de máscaras', () => {
           unit,
         }),
         q = readDetailPackage(JSON.stringify(pack)).project;
-      expect(pack.schema).toBe('openstruct.detail/15');
+      expect(pack.schema).toBe('openstruct.detail/16');
       const r = q.annotations.find((v) => v.id === a.id)!;
       expect(dimensionReferenceIssue(q, r)).toBeUndefined();
       expect(r.maskReferences).toEqual(a.maskReferences);
@@ -278,7 +278,7 @@ describe('Medir e cotar referências de máscaras', () => {
     ).toBeUndefined();
     const old = { ...p, schema: 'armadurastruct/23' },
       q = decodeProject(JSON.stringify(old));
-    expect(q.schema).toBe('armadurastruct/24');
+    expect(q.schema).toBe('armadurastruct/25');
     expect(q.annotations[0].maskReferences).toBeUndefined();
     expect(annotationPrimitives(q.annotations[0], q)).toEqual(
       annotationPrimitives(p.annotations[0], p),

@@ -392,7 +392,7 @@ describe('AS-54 · posição de fabricação e ocorrências', () => {
         fabricationPositions: undefined,
       };
       const q = decodeProject(JSON.stringify(old));
-      expect(q.schema).toBe('armadurastruct/24');
+      expect(q.schema).toBe('armadurastruct/25');
       expect(q.bars).toEqual(p.bars);
       expect(q.annotations).toMatchObject(p.annotations);
       expect(pieces(q)).toBe(7);
@@ -430,7 +430,7 @@ describe('AS-54 · posição de fabricação e ocorrências', () => {
         producer: { app: 'test', version: '1' },
         unit,
       });
-      expect(pack.schema).toBe('openstruct.detail/15');
+      expect(pack.schema).toBe('openstruct.detail/16');
       const source = readDetailPackage(JSON.stringify(pack)).project;
       expect(schedule(source)).toHaveLength(1);
       expect(pieces(source)).toBe(7);

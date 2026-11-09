@@ -1,3 +1,18 @@
+import StirrupCriteriaDialog from './components/StirrupCriteriaDialog';
+import StirrupLaunchPanel, {
+  type StirrupSession,
+} from './components/StirrupLaunchPanel';
+import {
+  criteriaBar,
+  criteriaFromBar,
+  withStirrupRange,
+} from './domain/stirrups';
+import {
+  defaultStirrupCriteria,
+  type StirrupCriteria,
+} from './domain/stirrupSchema';
+import { stirrupPrimitives } from './domain/stirrupGeometry';
+import { distributionPrimitives } from './domain/drafting';
 import { isTauri } from '@tauri-apps/api/core';
 import {
   folderHint,
@@ -631,6 +646,22 @@ export default function App() {
     [draft, setDraft] = useState<Point[]>([]),
     [tab, setTab] = useState('Armaduras'),
     [page, setPageRaw] = useState<'drawing' | 'schedule'>('drawing');
+  const [stirrupSession, setStirrupSession] = useState<StirrupSession | null>(
+    null,
+  );
+  const [stirrupDialog, setStirrupDialog] = useState<{
+    base: Project;
+    key: string;
+    detailId: string;
+    scope?: string;
+    maskId?: string;
+    c: StirrupCriteria;
+    editId?: string;
+  } | null>(null);
+  const stirrupCriteria = useRef<
+    { projectId: string; c: StirrupCriteria } | undefined
+  >(undefined);
+  const stirrupConsumed = useRef(false);
   const [grid, setGrid] = useState(true),
     [snap, setSnap] = useState(true),
     [ortho, setOrtho] = useState(false),
@@ -1157,6 +1188,8 @@ export default function App() {
     if (ids.length) setSidebarTab('properties');
   };
   const setTool = (t: Tool) => {
+    setStirrupSession(null);
+    setStirrupDialog(null);
     setMeasureSession(null);
     setMatch(null);
     if (maskOffset) {
@@ -1183,6 +1216,10 @@ export default function App() {
       notify(
         'Abra o desenho com duplo clique na vista para editar os objetos.',
       );
+      return;
+    }
+    if (t === 'stirrup') {
+      startStirrup(false);
       return;
     }
     if (dimensionTool(t)) {
@@ -1347,7 +1384,7 @@ export default function App() {
           distribution,
           count:
             source?.kind === 'distribution' && source.mode === 'spacing'
-              ? { mode: 'spacing', spacing: source.spacing }
+              ? { mode: 'spacing', spacing: source.spacing, fit: source.fit }
               : {
                   mode:
                     b.distribution && source?.kind === 'manual'
@@ -1395,7 +1432,11 @@ export default function App() {
             count:
               b.quantitySource?.kind === 'distribution' &&
               b.quantitySource.mode === 'spacing'
-                ? { mode: 'spacing', spacing: b.quantitySource.spacing }
+                ? {
+                    mode: 'spacing',
+                    spacing: b.quantitySource.spacing,
+                    fit: b.quantitySource.fit,
+                  }
                 : {
                     mode:
                       b.quantitySource?.kind === 'manual'
@@ -3241,7 +3282,384 @@ export default function App() {
       setToolRaw('select');
     }
   }, [nativeKind, nativeTarget]);
+  function cancelStirrup() {
+    setStirrupSession(null);
+    setStirrupDialog(null);
+    setToolRaw('select');
+    setDraft([]);
+  }
+  function startStirrup(forceCriteria: boolean, editId?: string) {
+    if (activeSheet) {
+      notify('Abra um desenho para lançar estribos.');
+      return;
+    }
+    const base = historyRef.current.present,
+      bar = editId ? base.bars.find((b) => b.id === editId) : undefined;
+    if (
+      editId &&
+      (!bar ||
+        bar.kind !== 'stirrup' ||
+        !canCaptureObject(base, documentKey, editId))
+    ) {
+      notify('Estribo indisponível neste contexto.');
+      return;
+    }
+    setSelectedRaw([]);
+    setMaskId(null);
+    setNativeEntity(undefined);
+    setDraft([]);
+    setPage('drawing');
+    const c = bar
+      ? criteriaFromBar(bar)
+      : stirrupCriteria.current?.projectId === base.id
+        ? stirrupCriteria.current.c
+        : (base.stirrupDefaults ?? {
+            ...defaultStirrupCriteria(),
+            diameter: newDiameter,
+            mandrel: newDiameter * 5,
+            quantity: newQuantity,
+            spacing: newSpacing,
+            profile: { ...defaultStirrupCriteria().profile, cover },
+          });
+    setToolRaw('stirrup');
+    const context = {
+      base,
+      key: documentKey,
+      detailId: activeDetailId,
+      scope: isolatedDetailId,
+      maskId: drawingMaskId,
+      c: structuredClone(c),
+    };
+    if (
+      forceCriteria ||
+      editId ||
+      (!base.stirrupDefaults && stirrupCriteria.current?.projectId !== base.id)
+    ) {
+      setStirrupSession(null);
+      setStirrupDialog({ ...context, editId });
+    } else {
+      stirrupConsumed.current = false;
+      setStirrupSession({
+        ...context,
+        id: uid(),
+        mark: nextMark(base),
+        stage: 'section',
+        points: [],
+      });
+    }
+  }
+  const stirrupContextValid = (s: {
+    base: Project;
+    key: string;
+    detailId: string;
+    scope?: string;
+    maskId?: string;
+  }) =>
+    s.base === historyRef.current.present &&
+    s.key === documentKey &&
+    s.detailId === activeDetailId &&
+    s.scope === isolatedDetailId &&
+    s.maskId === drawingMaskId &&
+    !activeSheet;
+  useEffect(() => {
+    const s = stirrupSession ?? stirrupDialog;
+    if (s && !stirrupContextValid(s)) {
+      cancelStirrup();
+      notify(
+        'Lançamento de estribo cancelado: o projeto ou contexto mudou. Reinicie no destino correto.',
+      );
+    }
+  }, [p, documentKey, activeDetailId, isolatedDetailId, drawingMaskId]);
+  const stirrupPreview = useMemo(() => {
+    const s = stirrupSession;
+    if (!s || s.stage === 'shape') return {};
+    try {
+      const origin = s.section ?? s.cursor;
+      if (!origin) return {};
+      let bar = criteriaBar(s.c, origin, s.mark, s.id);
+      const end = s.end ?? (s.stage === 'range-end' ? s.cursor : undefined);
+      if (s.start && end)
+        bar = withStirrupRange(
+          bar,
+          s.c,
+          s.start,
+          end,
+          s.label ?? (s.stage === 'label' ? s.cursor : undefined),
+        );
+      return {
+        bar,
+        lines: [...stirrupPrimitives(bar), ...distributionPrimitives(bar)],
+      };
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  }, [stirrupSession]);
+  function confirmStirrup() {
+    const s = stirrupSession;
+    if (!s || s.stage !== 'ready' || stirrupConsumed.current) return;
+    if (!stirrupContextValid(s)) {
+      cancelStirrup();
+      notify('O destino mudou. Reinicie o lançamento.');
+      return;
+    }
+    stirrupConsumed.current = true;
+    const ok = commit((current) => {
+      if (current !== s.base) throw Error('O projeto mudou durante a prévia.');
+      let b = criteriaBar(s.c, s.section!, s.mark, s.id);
+      if (s.c.distribute)
+        b = withStirrupRange(b, s.c, s.start!, s.end!, s.label);
+      b = barCadDefaults(current, b, true);
+      const commands: RebarCommand[] = [
+        {
+          type: 'bar.create',
+          id: b.id,
+          detailId: s.detailId,
+          definition: {
+            ...rebarDefinition(b),
+            quantitySource: { kind: 'manual' },
+          },
+        },
+      ];
+      if (
+        b.distribution &&
+        b.quantitySource.kind === 'distribution' &&
+        b.quantitySource.mode === 'spacing'
+      )
+        commands.push({
+          type: 'distribution.set',
+          barId: b.id,
+          distribution: b.distribution,
+          count: {
+            mode: 'spacing',
+            spacing: b.quantitySource.spacing,
+            fit: b.quantitySource.fit,
+          },
+        });
+      const next = applyRebarBatch(
+        current,
+        executeRebarBatch(current, commands, {
+          units: 'mm',
+          scopeDetailId: s.scope,
+          layerContext: s.key,
+        }),
+      );
+      return { ...next, stirrupDefaults: structuredClone(s.c) };
+    });
+    if (ok) {
+      stirrupCriteria.current = {
+        projectId: s.base.id,
+        c: structuredClone(s.c),
+      };
+      cancelStirrup();
+      select([s.id]);
+      setMessage(
+        `${s.mark}: seção e distribuição confirmadas em uma única posição. Esc cancela; E lança novamente.`,
+      );
+    } else stirrupConsumed.current = false;
+  }
+  function acceptStirrupCriteria(c: StirrupCriteria) {
+    const d = stirrupDialog;
+    if (!d) return;
+    if (!stirrupContextValid(d)) {
+      cancelStirrup();
+      notify('O projeto mudou. Abra novamente os critérios.');
+      return;
+    }
+    if (d.editId) {
+      const b = criteriaBar(c, { x: 0, y: 0 }, 'prévia', 'preview');
+      if (
+        editBar(d.editId, {
+          kind: 'stirrup',
+          width: b.width,
+          height: b.height,
+          diameter: b.diameter,
+          mandrel: b.mandrel,
+          steel: b.steel,
+          rotation: b.rotation,
+          hook: b.hook,
+          stirrupProfile: b.stirrupProfile,
+          stirrupDisplay: b.stirrupDisplay,
+        })
+      ) {
+        cancelStirrup();
+        select([d.editId]);
+      }
+      return;
+    }
+    stirrupCriteria.current = { projectId: d.base.id, c: structuredClone(c) };
+    setStirrupDialog(null);
+    stirrupConsumed.current = false;
+    setStirrupSession({
+      ...d,
+      c,
+      id: uid(),
+      mark: nextMark(d.base),
+      stage: 'section',
+      points: [],
+    });
+  }
+  function stirrupPoint(point: Point) {
+    const s = stirrupSession;
+    if (!s || stirrupConsumed.current) return;
+    if (!stirrupContextValid(s)) {
+      cancelStirrup();
+      notify('O contexto mudou. Reinicie o lançamento.');
+      return;
+    }
+    if (
+      !Number.isFinite(point.x) ||
+      !Number.isFinite(point.y) ||
+      Math.abs(point.x) > 1e8 ||
+      Math.abs(point.y) > 1e8
+    ) {
+      setStirrupSession({
+        ...s,
+        error: 'Informe coordenadas finitas dentro dos limites do modelo.',
+      });
+      return;
+    }
+    if (s.stage === 'shape') {
+      if (s.points.length >= 100) {
+        notify('Limite de 100 vértices.');
+        return;
+      }
+      setStirrupSession({
+        ...s,
+        points: [...s.points, point],
+        error: undefined,
+      });
+      return;
+    }
+    if (s.stage === 'section')
+      setStirrupSession({
+        ...s,
+        section: point,
+        stage: s.c.distribute ? 'range-start' : 'ready',
+        cursor: undefined,
+        error: undefined,
+      });
+    else if (s.stage === 'range-start')
+      setStirrupSession({
+        ...s,
+        start: point,
+        stage: 'range-end',
+        cursor: undefined,
+        error: undefined,
+      });
+    else if (s.stage === 'range-end') {
+      try {
+        withStirrupRange(
+          criteriaBar(s.c, s.section!, s.mark, s.id),
+          s.c,
+          s.start!,
+          point,
+        );
+        setStirrupSession({
+          ...s,
+          end: point,
+          stage: 'label',
+          cursor: undefined,
+          error: undefined,
+        });
+      } catch (e) {
+        setStirrupSession({ ...s, error: (e as Error).message });
+      }
+    } else if (s.stage === 'label')
+      setStirrupSession({
+        ...s,
+        label: point,
+        stage: 'ready',
+        cursor: undefined,
+        error: undefined,
+      });
+  }
+  function backStirrup() {
+    const s = stirrupSession;
+    if (!s) return;
+    if (s.stage === 'shape') {
+      setStirrupSession({
+        ...s,
+        points: s.points.slice(0, -1),
+        error: undefined,
+      });
+      return;
+    }
+    if (s.stage === 'section') {
+      setStirrupSession(null);
+      setStirrupDialog({
+        base: s.base,
+        key: s.key,
+        detailId: s.detailId,
+        scope: s.scope,
+        maskId: s.maskId,
+        c: s.c,
+        editId: s.editId,
+      });
+      return;
+    }
+    const stage =
+      s.stage === 'ready'
+        ? s.c.distribute
+          ? 'label'
+          : 'section'
+        : s.stage === 'label'
+          ? 'range-end'
+          : s.stage === 'range-end'
+            ? 'range-start'
+            : 'section';
+    setStirrupSession({
+      ...s,
+      stage,
+      label: undefined,
+      ...(stage === 'range-end' ? { end: undefined } : {}),
+      ...(stage === 'range-start' ? { end: undefined, start: undefined } : {}),
+      ...(stage === 'section'
+        ? { section: undefined, start: undefined, end: undefined }
+        : {}),
+      cursor: undefined,
+      error: undefined,
+    });
+  }
+  function finishStirrupShape() {
+    const s = stirrupSession;
+    if (!s || s.stage !== 'shape') return;
+    if (s.points.length < (s.c.profile.closed ? 3 : 2)) {
+      setStirrupSession({
+        ...s,
+        error:
+          'Indique ao menos três pontos para forma fechada ou dois para aberta.',
+      });
+      return;
+    }
+    const c = {
+      ...s.c,
+      profile: {
+        ...s.c.profile,
+        points: s.points.map((p) => rotate(sub(p, s.points[0]), -s.c.rotation)),
+      },
+    };
+    try {
+      criteriaBar(c, { x: 0, y: 0 }, 'prévia', 'preview');
+      setStirrupSession(null);
+      setStirrupDialog({
+        base: s.base,
+        key: s.key,
+        detailId: s.detailId,
+        scope: s.scope,
+        maskId: s.maskId,
+        c,
+        editId: s.editId,
+      });
+    } catch (e) {
+      setStirrupSession({ ...s, error: (e as Error).message });
+    }
+  }
   const finish = () => {
+    if (stirrupSession) {
+      if (stirrupSession.stage === 'shape') finishStirrupShape();
+      else if (stirrupSession.stage === 'ready') confirmStirrup();
+      return;
+    }
     if (measureSession) {
       if (tool === 'measure' && !draft.length) endMeasure();
       else
@@ -3315,6 +3733,10 @@ export default function App() {
     } else setDraft([]);
   };
   const onPoint = (point: Point) => {
+    if (stirrupSession) {
+      stirrupPoint(point);
+      return;
+    }
     if (match) return;
     if (maskOffset) {
       offsetPoint(
@@ -3541,30 +3963,6 @@ export default function App() {
     if (tool === 'bar' || tool === 'polyline') {
       if (!draft.length || distance(draft.at(-1)!, point) > 0.01)
         setDraft([...draft, point]);
-      return;
-    }
-    if (tool === 'stirrup') {
-      if (!draft.length) {
-        setDraft([point]);
-        return;
-      }
-      const a = draft[0],
-        w = Math.abs(point.x - a.x),
-        h = Math.abs(point.y - a.y);
-      if (w < 10 || h < 10) {
-        notify('Defina largura e altura de pelo menos 10 mm.');
-        return;
-      }
-      insertBar({
-        ...newBar(nextMark(p)),
-        kind: 'stirrup',
-        quantity: newQuantity,
-        diameter: newDiameter,
-        mandrel: newDiameter * 5,
-        origin: { x: Math.min(a.x, point.x), y: Math.min(a.y, point.y) },
-        width: w,
-        height: h,
-      });
       return;
     }
     if (measureSession && dimensionTool(tool)) {
@@ -3985,6 +4383,28 @@ export default function App() {
     return true;
   };
   const action = async (a: Action) => {
+    if (a === 'stirrup-criteria') {
+      setTool('select');
+      startStirrup(true);
+      return;
+    }
+    if (
+      stirrupSession &&
+      ![
+        'fit',
+        'grid',
+        'snap',
+        'ortho',
+        'dimensions',
+        'sidebar',
+        'focus',
+        'save',
+      ].includes(a)
+    ) {
+      cancelStirrup();
+      if (['undo', 'redo'].includes(a)) return;
+    }
+
     if (measureSession && ['undo', 'redo'].includes(a)) {
       endMeasure();
       return;
@@ -5026,6 +5446,10 @@ export default function App() {
         vertexRequest
           ? (vertexPreview.anchor ?? { x: 0, y: 0 })
           : (maskOffset?.points.at(-1) ??
+              stirrupSession?.points.at(-1) ??
+              stirrupSession?.end ??
+              stirrupSession?.start ??
+              stirrupSession?.section ??
               maskManip?.base ??
               maskCalibration?.points.at(-1) ??
               draft.at(-1) ?? { x: 0, y: 0 }),
@@ -5042,6 +5466,10 @@ export default function App() {
         ? ((vertexRequest
             ? vertexPreview.anchor
             : (maskOffset?.points.at(-1) ??
+              stirrupSession?.points.at(-1) ??
+              stirrupSession?.end ??
+              stirrupSession?.start ??
+              stirrupSession?.section ??
               maskManip?.base ??
               maskCalibration?.points.at(-1) ??
               draft.at(-1))) ?? {
@@ -5062,6 +5490,14 @@ export default function App() {
   };
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (stirrupDialog) {
+        if (
+          (e.ctrlKey || e.metaKey) &&
+          ['s', 'o', 'z', 'y'].includes(e.key.toLowerCase())
+        )
+          e.preventDefault();
+        return;
+      }
       if (modal === 'new') {
         if (e.key === 'Escape' && !hasPendingFolderWrites()) setModal(null);
         if (
@@ -5098,6 +5534,11 @@ export default function App() {
         'input,textarea,select',
       );
       if (e.key === 'Escape') {
+        if (stirrupSession) {
+          cancelStirrup();
+          cmdInput.current?.blur();
+          return;
+        }
         if (measureSession) {
           endMeasure();
           cmdInput.current?.blur();
@@ -5228,6 +5669,36 @@ export default function App() {
   });
   return (
     <div className={`app-shell ${focus ? 'focus-mode' : ''}`}>
+      {stirrupDialog && (
+        <StirrupCriteriaDialog
+          initial={stirrupDialog.c}
+          editMark={
+            stirrupDialog.editId
+              ? p.bars.find((b) => b.id === stirrupDialog.editId)?.mark
+              : undefined
+          }
+          issue={
+            stirrupDialog.editId &&
+            !p.bars.find((b) => b.id === stirrupDialog.editId)?.stirrupProfile
+              ? 'Posição legada: aplicar converte explicitamente a seção para os novos critérios; confira a prévia.'
+              : undefined
+          }
+          onAccept={acceptStirrupCriteria}
+          onClose={cancelStirrup}
+          onDraw={(c) => {
+            stirrupConsumed.current = false;
+            setStirrupSession({
+              ...stirrupDialog,
+              c,
+              id: uid(),
+              mark: nextMark(stirrupDialog.base),
+              stage: 'shape',
+              points: [],
+            });
+            setStirrupDialog(null);
+          }}
+        />
+      )}
       <input
         ref={maskInput}
         type="file"
@@ -5876,6 +6347,19 @@ export default function App() {
                 }}
                 dimensionPresentation={measureSession?.presentation}
                 previewLines={
+                  (stirrupSession?.stage === 'shape'
+                    ? [
+                        {
+                          layer: 'ARMADURAS',
+                          points: [
+                            ...stirrupSession.points,
+                            ...(stirrupSession.cursor
+                              ? [stirrupSession.cursor]
+                              : []),
+                          ],
+                        },
+                      ]
+                    : stirrupPreview.lines) ??
                   offsetLines ??
                   manipLines ??
                   calibrationLines ??
@@ -5920,6 +6404,7 @@ export default function App() {
                       transformRequest?.base)
                 }
                 commandActive={
+                  !!stirrupSession ||
                   !!measureSession ||
                   !!match ||
                   !!maskOffset ||
@@ -5943,6 +6428,7 @@ export default function App() {
                 isolatedDetailId={isolatedDetailId}
                 onEditDetail={beginDetailEdit}
                 tool={
+                  stirrupSession ||
                   match ||
                   maskOffset ||
                   maskManip ||
@@ -5961,17 +6447,24 @@ export default function App() {
                 onFinish={finish}
                 onBarChange={editBar}
                 draft={
-                  maskOffset?.stage === 'measure'
-                    ? maskOffset.points
-                    : maskManip?.base
-                      ? [maskManip.base]
-                      : maskCalibration
-                        ? maskCalibration.points.length === 1
-                          ? maskCalibration.points
-                          : []
-                        : vertexRequest && vertexPreview.anchor
-                          ? [vertexPreview.anchor]
-                          : draft
+                  stirrupSession
+                    ? stirrupSession.stage === 'shape'
+                      ? stirrupSession.points
+                      : stirrupSession.stage === 'range-end' &&
+                          stirrupSession.start
+                        ? [stirrupSession.start]
+                        : []
+                    : maskOffset?.stage === 'measure'
+                      ? maskOffset.points
+                      : maskManip?.base
+                        ? [maskManip.base]
+                        : maskCalibration
+                          ? maskCalibration.points.length === 1
+                            ? maskCalibration.points
+                            : []
+                          : vertexRequest && vertexPreview.anchor
+                            ? [vertexPreview.anchor]
+                            : draft
                 }
                 grid={grid}
                 snap={snap}
@@ -5980,6 +6473,10 @@ export default function App() {
                 setTool={setTool}
                 onCursor={(point) => {
                   onCursor(point);
+                  if (stirrupSession && stirrupSession.stage !== 'ready')
+                    setStirrupSession((s) =>
+                      s ? { ...s, cursor: point, error: undefined } : s,
+                    );
                   if (measureSession)
                     setMeasureSession((s) => (s ? { ...s, cursor: point } : s));
                   if (maskManip?.stage === 'target')
@@ -6004,6 +6501,16 @@ export default function App() {
                 }}
                 showDimensions={dimensions}
               />
+              {stirrupSession && (
+                <StirrupLaunchPanel
+                  session={stirrupSession}
+                  bar={stirrupPreview.bar}
+                  error={stirrupPreview.error}
+                  onConfirm={confirmStirrup}
+                  onBack={backStirrup}
+                  onCancel={cancelStirrup}
+                />
+              )}
               {measureSession && (
                 <MeasureDimensionPanel
                   session={measureSession}
@@ -6482,6 +6989,12 @@ export default function App() {
               </div>
             ) : (
               <Inspector
+                onStirrupCriteria={() => {
+                  if (chosen) {
+                    setTool('select');
+                    startStirrup(true, chosen.id);
+                  }
+                }}
                 onDimensionEdit={(mode) =>
                   action(mode === 'segment' ? 'edit-segment' : 'lengthen-bar')
                 }
@@ -6505,7 +7018,15 @@ export default function App() {
                       type: 'distribution.set',
                       barId: chosen.id,
                       distribution: chosen.distribution,
-                      count: { mode: 'spacing', spacing },
+                      count: {
+                        mode: 'spacing',
+                        spacing,
+                        fit:
+                          chosen?.quantitySource.kind === 'distribution' &&
+                          chosen.quantitySource.mode === 'spacing'
+                            ? chosen.quantitySource.fit
+                            : undefined,
+                      },
                     },
                   ])
                 }

@@ -495,7 +495,7 @@ describe('transação CAD, persistência e integridade', () => {
       back = readDetailPackage(JSON.stringify(pack)).project;
     expect(back.masks[0].primitives[0].native?.kind).toBe('arc');
     expect(back.masks[0].primitives[0].native).toEqual(arc.native);
-    expect(pack.schema).toBe('openstruct.detail/15');
+    expect(pack.schema).toBe('openstruct.detail/16');
     expect(() =>
       readDetailPackage({ ...pack, schema: 'openstruct.detail/13' }),
     ).toThrow(/v14/);
@@ -515,7 +515,7 @@ describe('transação CAD, persistência e integridade', () => {
     expect(
       readDetailPackage(legacyPack).project.masks[0].primitives,
     ).toMatchObject(p.masks[0].primitives);
-    expect(decodeProject(JSON.stringify(raw)).schema).toBe('armadurastruct/24');
+    expect(decodeProject(JSON.stringify(raw)).schema).toBe('armadurastruct/25');
     const shape = {
       kind: 'arc' as const,
       center: { x: 0, y: 0 },

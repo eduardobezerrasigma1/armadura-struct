@@ -191,6 +191,7 @@ export function Inspector({
   onDistributionSpacing,
   onVertexEdit,
   onDimensionEdit,
+  onStirrupCriteria,
   onMask,
   onSelectRepresentation,
   onRemoveDetails,
@@ -201,6 +202,7 @@ export function Inspector({
   mask?: Mask;
   onBar: (patch: Partial<Bar>) => void | boolean;
   onVertexEdit?: (mode: 'insert' | 'extend' | 'remove') => void;
+  onStirrupCriteria?: () => void;
   onDimensionEdit?: (mode: 'segment' | 'lengthen') => void;
   onDistributionSpacing: (spacing: number) => void | boolean;
   onMask: (patch: Partial<Mask>) => void;
@@ -551,6 +553,26 @@ export function Inspector({
             </details>
             <Section title="Geometria e dobras">
               {bar.kind === 'stirrup' && (
+                <button onClick={onStirrupCriteria}>
+                  Editar critérios desta posição
+                </button>
+              )}
+              {bar.stirrupProfile && (
+                <p className="field-help">
+                  Forma{' '}
+                  {bar.stirrupProfile.shape === 'circle'
+                    ? 'circular'
+                    : bar.stirrupProfile.shape === 'free'
+                      ? 'livre'
+                      : 'retangular'}{' '}
+                  · medidas{' '}
+                  {bar.stirrupProfile.reference === 'axis'
+                    ? 'no eixo'
+                    : 'da seção de concreto'}
+                  . Ganchos e fechamento nos critérios.
+                </p>
+              )}
+              {bar.kind === 'stirrup' && !bar.stirrupProfile && (
                 <>
                   <div className="fields-2">
                     <NumberField

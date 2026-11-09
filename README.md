@@ -181,3 +181,5 @@ Instale pelo [Struct Launcher](https://openstruct.com.br/launcher). Os pacotes a
 ## Identidade
 
 Hefesto trabalhando uma armadura, em gravura preta e marfim sobre fundo âmbar. Os formatos utilizados pelo aplicativo estão em `public/brand` e `src-tauri/icons`.
+
+[Critérios e lançamento de estribos pela seção e faixa](docs/ESTRIBOS.md).

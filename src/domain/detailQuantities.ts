@@ -103,7 +103,11 @@ export function assemblyLabel(
 export function barSearchText(b: Bar) {
   return `${b.id} ${b.mark} ${b.element} ${b.comment ?? ''} ${b.columnLevel ?? ''} ${b.ribbed ? 'nervura nervurada' : ''}`;
 }
-export function quantityForSpacing(length: number, spacing: number) {
+export function quantityForSpacing(
+  length: number,
+  spacing: number,
+  fit: 'maximum' | 'fixed' = 'maximum',
+) {
   if (
     !Number.isFinite(length) ||
     !Number.isFinite(spacing) ||
@@ -113,7 +117,15 @@ export function quantityForSpacing(length: number, spacing: number) {
     throw new Error('Defina um comprimento e espaçamento positivos.');
   // Relative epsilon prevents ceil(3.0000000000000004) after unit conversion.
   const intervals = length / spacing;
-  const quantity = Math.ceil(intervals - 1e-12 * Math.max(1, intervals)) + 1;
+  const tolerance = 1e-12 * Math.max(1, intervals);
+  const quantity =
+    (fit === 'fixed'
+      ? Math.floor(intervals + tolerance)
+      : Math.ceil(intervals - tolerance)) + 1;
+  if (quantity < 2)
+    throw Error(
+      'O trecho deve comportar ao menos dois estribos no espaçamento fixo.',
+    );
   if (quantity > 100000)
     throw new Error('A faixa excede 100.000 peças. Aumente o espaçamento.');
   return Math.max(2, quantity);
@@ -129,6 +141,7 @@ export function expectedBaseQuantity(b: Bar): number {
     ? quantityForSpacing(
         distance(b.distribution.start ?? b.origin, b.distribution.end),
         source.spacing,
+        source.fit,
       )
     : b.quantity;
 }

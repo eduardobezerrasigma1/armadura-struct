@@ -1,3 +1,4 @@
+import { configureStirrupSection } from './stirrup.helpers';
 import {
   confirmProjectReplacement,
   useCompatibleProjectFolders,
@@ -244,7 +245,8 @@ test('repetição de estribos e faixa calculam quantidade pelo espaçamento máx
   page,
 }) => {
   await fresh(page);
-  for (const value of ['E', '0,0', '300,500']) await command(page, value);
+  await configureStirrupSection(page);
+  for (const value of ['0,0', '']) await command(page, value);
   await page.keyboard.press('Escape');
   await page.getByLabel('Espaçamento de criação', { exact: true }).fill('150');
   await page.getByLabel('Espaçamento de criação', { exact: true }).press('Tab');

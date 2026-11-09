@@ -124,6 +124,9 @@ export function transformSelection(
                     ? at(b.distribution.start)
                     : undefined,
                   end: at(b.distribution.end),
+                  ...(flipped && b.distribution.annotationOffset !== undefined
+                    ? { annotationOffset: -b.distribution.annotationOffset }
+                    : {}),
                 }
               : undefined,
           },

@@ -44,6 +44,7 @@ import type { ReactNode } from 'react';
 import { NumberField } from './Panels';
 export type Action =
   | Tool
+  | 'stirrup-criteria'
   | 'cad-settings'
   | 'mask-control'
   | 'mask-calibrate'
@@ -401,6 +402,7 @@ export default function Ribbon({
         items: [
           item('bar', 'Barra livre', PencilRuler),
           item('stirrup', 'Estribo', SquareDashed),
+          item('stirrup-criteria', 'Critérios do estribo', Settings),
           item('repeat', 'Repetir estribo', Copy, 1),
           item('detail', 'Rebater armadura', Shapes, 1),
           item('convert', 'Converter polilinha', Spline),

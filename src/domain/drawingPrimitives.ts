@@ -1,3 +1,4 @@
+import { stirrupPrimitives, stirrupDimensionLabels } from './stirrupGeometry';
 import { styledDrafting } from './cadDefaults';
 import { stylePrimitive } from './layers';
 import {
@@ -38,7 +39,10 @@ export function physicalBarTextPrimitives(
     textAlign: align,
   });
   const out: Primitive[] = [];
-  if (showsPhysicalDescription(p, b.id))
+  if (
+    b.stirrupDisplay?.identification !== false &&
+    showsPhysicalDescription(p, b.id)
+  )
     out.push(
       text(
         `${b.mark} - ${quantityLabel(p, b)} x %%c${b.diameter} - C=${format(geometry(b).length / 10)} cm${assemblyLabel(b) ? ` · ${assemblyLabel(b)}` : ''}`,
@@ -46,7 +50,11 @@ export function physicalBarTextPrimitives(
         'IDENTIFICACAO',
       ),
     );
-  if (b.kind === 'stirrup')
+  if (b.stirrupProfile && b.stirrupDisplay?.dimensions !== false) {
+    for (const d of stirrupDimensionLabels(b))
+      out.push(text(d.text, d.at, 'COTAS', 'center'));
+  }
+  if (b.kind === 'stirrup' && !b.stirrupProfile)
     out.push(
       text(
         format(b.width / 10),
@@ -96,6 +104,7 @@ export function drawingPrimitives(
   for (const b of p.bars) {
     const start = lines.length;
     if (b.distribution?.render === 'bars') lines.push(...repeatedGeometry(b));
+    else if (b.stirrupProfile) lines.push(...stirrupPrimitives(b));
     else
       lines.push({
         layer: 'ARMADURAS',

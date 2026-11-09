@@ -369,7 +369,7 @@ describe('AS-56 · quantidade por grupo, nervura e lance', () => {
       delete raw.bars[0].quantitySource;
       raw.scheduleLock = { at: 'legacy', bars: structuredClone(raw.bars) };
       const p = decodeProject(JSON.stringify(raw));
-      expect(p.schema).toBe('armadurastruct/24');
+      expect(p.schema).toBe('armadurastruct/25');
       expect(p.bars[0]).toMatchObject({
         quantity: 7,
         multiplier: 1,
@@ -463,7 +463,7 @@ describe('AS-56 · quantidade por grupo, nervura e lance', () => {
         producer: { app: 'test', version: '1' },
         unit,
       });
-      expect(pack.schema).toBe('openstruct.detail/15');
+      expect(pack.schema).toBe('openstruct.detail/16');
       const source = readDetailPackage(pack).project;
       expect(pieces(source)).toBe(72);
       expect(source.bars[0].quantitySource).toEqual({

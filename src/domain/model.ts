@@ -1,4 +1,10 @@
 import {
+  stirrupProfileSchema,
+  stirrupDisplaySchema,
+  stirrupCriteriaSchema,
+  distributionShape,
+} from './stirrupSchema';
+import {
   dimensionPresentationSchema,
   maskDimensionReferencesSchema,
 } from './maskDimensions';
@@ -175,6 +181,7 @@ export const quantitySourceSchema = z.union([
       kind: z.literal('distribution'),
       mode: z.literal('spacing'),
       spacing: number.positive(),
+      fit: z.enum(['maximum', 'fixed']).optional(),
     })
     .strict(),
 ]);
@@ -197,6 +204,8 @@ const barSchema = z
     element: z.string().max(100),
     kind: z.enum(['free', 'stirrup']),
     stirrupMirrored: z.boolean().optional(),
+    stirrupProfile: stirrupProfileSchema.optional(),
+    stirrupDisplay: stirrupDisplaySchema.optional(),
     origin: point,
     rotation: number,
     points: z.array(point).min(2).max(500),
@@ -207,13 +216,7 @@ const barSchema = z
     mandrel: number.positive().max(2000),
     steel: z.enum(['CA-50', 'CA-60']),
     quantity: z.number().int().min(1).max(100000),
-    distribution: z
-      .object({
-        start: point.optional(),
-        end: point,
-        render: z.enum(['ticks', 'bars']).optional(),
-      })
-      .optional(),
+    distribution: z.object(distributionShape).strict().optional(),
     color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   })
   .strict();
@@ -247,6 +250,7 @@ const schema = z.object({
     'armadurastruct/18',
     'armadurastruct/19',
   ]),
+  stirrupDefaults: stirrupCriteriaSchema.optional(),
   cadDefaults: cadDefaultsSchema.optional(),
   layerEnvironment: layerEnvironmentSchema.optional(),
   plotting: plotSettingsSchema.optional(),
@@ -466,7 +470,22 @@ export function decodeProject(
   options: { allowOrphanReferences?: boolean } = {},
 ): Project {
   const input = JSON.parse(raw);
-  const dimensionVersion = input?.schema === 'armadurastruct/24';
+  const stirrupVersion = input?.schema === 'armadurastruct/25';
+  if (
+    !stirrupVersion &&
+    (input?.stirrupDefaults ||
+      [...(input?.bars ?? []), ...(input?.scheduleLock?.bars ?? [])].some(
+        (b) =>
+          b.stirrupProfile ||
+          b.stirrupDisplay ||
+          b.distribution?.annotationOffset !== undefined ||
+          b.distribution?.insets ||
+          b.quantitySource?.fit,
+      ))
+  )
+    throw Error('Critérios e faixas de estribos exigem formato 25.');
+  const dimensionVersion =
+    stirrupVersion || input?.schema === 'armadurastruct/24';
   if (
     !dimensionVersion &&
     input?.annotations?.some(
@@ -737,7 +756,7 @@ export function decodeProject(
   let p: Project = {
     ...parsed,
     id,
-    schema: 'armadurastruct/24',
+    schema: 'armadurastruct/25',
     layers: parsed.layers ?? defaultLayers(),
     sheets: v4
       ? parsed.sheets!.map((s) => ({
@@ -754,8 +773,13 @@ export function decodeProject(
       objectOrigins: hierarchy.objectOrigins ?? {},
     },
   };
-  for (const b of [...p.bars, ...(p.scheduleLock?.bars ?? [])])
+  for (const b of [...p.bars, ...(p.scheduleLock?.bars ?? [])]) {
     validateBarQuantity(b);
+    if (b.stirrupProfile && (b.kind !== 'stirrup' || geometry(b).errors.length))
+      throw Error(
+        `Estribo ${b.mark}: ${geometry(b).errors.join(' ') || 'família inválida'}`,
+      );
+  }
   for (const sheet of p.sheets) validateSheetLayout(sheet);
   const ids = p.bars.map((b) => b.id);
   if (new Set(ids).size !== ids.length)
@@ -964,7 +988,7 @@ export const emptyProject = (): Project => {
     polylines: [],
   };
   return {
-    schema: 'armadurastruct/24',
+    schema: 'armadurastruct/25',
     layers: defaultLayers(),
     sheets: [initialSheet(`${id}:sheet`)],
     id,

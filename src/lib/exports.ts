@@ -256,6 +256,35 @@ export function toDxf(p: Project): string {
       );
       continue;
     }
+    if (
+      item.native?.kind === 'arc' &&
+      ['ARMADURAS', 'REBATIMENTOS'].includes(item.role ?? item.layer)
+    ) {
+      const a = item.native,
+        start = a.sweepAngle > 0 ? a.startAngle : a.startAngle + a.sweepAngle,
+        end = a.sweepAngle > 0 ? a.startAngle + a.sweepAngle : a.startAngle;
+      put(0, 'ARC');
+      common(item);
+      put(
+        100,
+        'AcDbCircle',
+        10,
+        a.center.x,
+        20,
+        a.center.y,
+        30,
+        0,
+        40,
+        a.radius,
+        100,
+        'AcDbArc',
+        50,
+        ((start % 360) + 360) % 360,
+        51,
+        ((end % 360) + 360) % 360,
+      );
+      continue;
+    }
     if (item.points.length < 2) continue;
     put(0, 'LWPOLYLINE');
     common(item);

@@ -1,3 +1,4 @@
+import { scaleStirrupProfile } from './stirrupSchema';
 import { scaleDimensionReferences } from './maskDimensions';
 import { nativePrimitive } from './nativeMasks';
 import { drawingLayerSchema } from './layerSchema';
@@ -19,7 +20,7 @@ import { mul } from './geometry';
 import { repetitionNames } from './detailQuantities';
 import type { Bar, Point, Project } from './types';
 
-export const DETAIL_PACKAGE_SCHEMA = 'openstruct.detail/15' as const;
+export const DETAIL_PACKAGE_SCHEMA = 'openstruct.detail/16' as const;
 const id = z.string().min(1).max(200);
 const named = (max = 100) =>
   z.object({ id, name: z.string().trim().min(1).max(max) });
@@ -41,6 +42,7 @@ export const detailPackageSchema = z
       'openstruct.detail/13',
       'openstruct.detail/14',
       'openstruct.detail/15',
+      'openstruct.detail/16',
     ]),
     layers: z.array(drawingLayerSchema).min(1).max(2000).optional(),
     fabricationPositions: z
@@ -88,6 +90,9 @@ function scaleBar(b: Bar, k: number): Bar {
     width: b.width * k,
     height: b.height * k,
     hook: b.hook * k,
+    ...(b.stirrupProfile
+      ? { stirrupProfile: scaleStirrupProfile(b.stirrupProfile, k) }
+      : {}),
     diameter: b.diameter * k,
     mandrel: b.mandrel * k,
     quantitySource:
@@ -100,6 +105,17 @@ function scaleBar(b: Bar, k: number): Bar {
           distribution: {
             ...b.distribution,
             end: point(b.distribution.end),
+            ...(b.distribution.annotationOffset !== undefined
+              ? { annotationOffset: b.distribution.annotationOffset * k }
+              : {}),
+            ...(b.distribution.insets
+              ? {
+                  insets: {
+                    start: b.distribution.insets.start * k,
+                    end: b.distribution.insets.end * k,
+                  },
+                }
+              : {}),
             ...(b.distribution.start
               ? { start: point(b.distribution.start) }
               : {}),
@@ -210,6 +226,20 @@ export function detailPackageProject(value: DetailPackage): Project {
     detailPackageSchema.parse(value),
     factors[value.units.length],
   );
+  if (
+    pack.schema !== 'openstruct.detail/16' &&
+    [...pack.objects.bars, ...pack.dependencies].some(
+      (b) =>
+        b.stirrupProfile ||
+        b.stirrupDisplay ||
+        b.distribution?.annotationOffset !== undefined ||
+        b.distribution?.insets ||
+        (b.quantitySource.kind === 'distribution' &&
+          b.quantitySource.mode === 'spacing' &&
+          b.quantitySource.fit),
+    )
+  )
+    throw Error('Estribos parametrizados exigem pacote v16.');
   if (pack.schema === 'openstruct.detail/1' && pack.context.detail.repetition)
     throw new Error('Repetições exigem pacote openstruct.detail/2.');
   if (
@@ -227,6 +257,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/13',
       'openstruct.detail/14',
       'openstruct.detail/15',
+      'openstruct.detail/16',
     ].includes(pack.schema) &&
     (pack.fabricationPositions ||
       [...pack.objects.bars, ...pack.dependencies].some((b) => b.manufacturing))
@@ -248,6 +279,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/13',
       'openstruct.detail/14',
       'openstruct.detail/15',
+      'openstruct.detail/16',
     ].includes(pack.schema) &&
     [...pack.objects.bars, ...pack.dependencies].some(hasArmatureData)
   )
@@ -267,6 +299,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/13',
       'openstruct.detail/14',
       'openstruct.detail/15',
+      'openstruct.detail/16',
     ].includes(pack.schema) &&
     pack.objects.details.some(
       (d) =>
@@ -288,6 +321,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/13',
       'openstruct.detail/14',
       'openstruct.detail/15',
+      'openstruct.detail/16',
     ].includes(pack.schema) &&
     pack.objects.details.some((d) => d.label || d.showDimensions !== undefined)
   )
@@ -303,6 +337,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/13',
       'openstruct.detail/14',
       'openstruct.detail/15',
+      'openstruct.detail/16',
     ].includes(pack.schema) &&
     [...pack.objects.annotations, ...pack.objects.polylines].some(
       (o) => o.barIds !== undefined,
@@ -318,6 +353,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/13',
       'openstruct.detail/14',
       'openstruct.detail/15',
+      'openstruct.detail/16',
     ].includes(pack.schema) &&
     (pack.layers?.some((l) => l.plot) ||
       [
@@ -335,6 +371,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/13',
       'openstruct.detail/14',
       'openstruct.detail/15',
+      'openstruct.detail/16',
     ].includes(pack.schema) &&
     ([...pack.objects.bars, ...pack.dependencies].some(
       (b) => b.stirrupMirrored !== undefined,
@@ -350,6 +387,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/13',
       'openstruct.detail/14',
       'openstruct.detail/15',
+      'openstruct.detail/16',
     ].includes(pack.schema) &&
     pack.objects.masks.some((m) => m.format === 'NATIVE')
   )
@@ -360,6 +398,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/13',
       'openstruct.detail/14',
       'openstruct.detail/15',
+      'openstruct.detail/16',
     ].includes(pack.schema) &&
     pack.objects.masks.some(
       (m) => m.format !== 'NATIVE' && m.primitives.some((q) => q.native),
@@ -371,6 +410,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/13',
       'openstruct.detail/14',
       'openstruct.detail/15',
+      'openstruct.detail/16',
     ].includes(pack.schema) &&
     [
       ...pack.objects.bars,
@@ -384,14 +424,18 @@ export function detailPackageProject(value: DetailPackage): Project {
   )
     throw new Error('Aparência de textos exige pacote v13.');
   if (
-    !['openstruct.detail/14', 'openstruct.detail/15'].includes(pack.schema) &&
+    ![
+      'openstruct.detail/14',
+      'openstruct.detail/15',
+      'openstruct.detail/16',
+    ].includes(pack.schema) &&
     pack.objects.masks.some((m) =>
       m.primitives.some((q) => q.native?.kind === 'arc' || q.sourceEntityId),
     )
   )
     throw new Error('Arcos e edição local CAD exigem pacote v14.');
   if (
-    pack.schema !== 'openstruct.detail/15' &&
+    !['openstruct.detail/15', 'openstruct.detail/16'].includes(pack.schema) &&
     pack.objects.annotations.some(
       (a) => a.maskReferences || a.dimensionPresentation,
     )
@@ -489,7 +533,7 @@ export function detailPackageProject(value: DetailPackage): Project {
   }
   return decodeProject(
     JSON.stringify({
-      schema: 'armadurastruct/24',
+      schema: 'armadurastruct/25',
       layers: pack.layers ?? defaultLayers(),
       fabricationPositions: pack.fabricationPositions ?? [],
       id: c.project.id,
@@ -537,6 +581,7 @@ export function readDetailPackage(raw: unknown): {
       'openstruct.detail/12',
       'openstruct.detail/13',
       'openstruct.detail/14',
+      'openstruct.detail/15',
       DETAIL_PACKAGE_SCHEMA,
     ].includes(input?.schema)
   )
@@ -544,6 +589,20 @@ export function readDetailPackage(raw: unknown): {
       `Versão de pacote não suportada. Use ${DETAIL_PACKAGE_SCHEMA}.`,
     );
   const pack = detailPackageSchema.parse(input);
+  if (
+    pack.schema !== 'openstruct.detail/16' &&
+    [...pack.objects.bars, ...pack.dependencies].some(
+      (b) =>
+        b.stirrupProfile ||
+        b.stirrupDisplay ||
+        b.distribution?.annotationOffset !== undefined ||
+        b.distribution?.insets ||
+        (b.quantitySource.kind === 'distribution' &&
+          b.quantitySource.mode === 'spacing' &&
+          b.quantitySource.fit),
+    )
+  )
+    throw Error('Estribos parametrizados exigem pacote v16.');
   if (
     [
       'openstruct.detail/8',
@@ -554,6 +613,7 @@ export function readDetailPackage(raw: unknown): {
       'openstruct.detail/13',
       'openstruct.detail/14',
       'openstruct.detail/15',
+      'openstruct.detail/16',
     ].includes(pack.schema) &&
     !pack.layers
   )

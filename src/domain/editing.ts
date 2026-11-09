@@ -247,10 +247,15 @@ export function transformBar(bar: Bar, operation: 'rotate' | 'mirror'): Bar {
     ...bar,
     ...(operation === 'rotate'
       ? { rotation: (bar.rotation + 90) % 360 }
-      : {
-          kind: 'free' as const,
-          points: vertices(bar).map((p) => ({ x: -p.x, y: p.y })),
-        }),
+      : bar.stirrupProfile
+        ? {
+            rotation: (bar.rotation + 180) % 360,
+            stirrupMirrored: !bar.stirrupMirrored,
+          }
+        : {
+            kind: 'free' as const,
+            points: vertices(bar).map((p) => ({ x: -p.x, y: p.y })),
+          }),
     distribution: bar.distribution
       ? {
           ...bar.distribution,
@@ -258,6 +263,10 @@ export function transformBar(bar: Bar, operation: 'rotate' | 'mirror'): Bar {
             ? transformPoint(bar.distribution.start)
             : undefined,
           end: transformPoint(bar.distribution.end),
+          ...(operation === 'mirror' &&
+          bar.distribution.annotationOffset !== undefined
+            ? { annotationOffset: -bar.distribution.annotationOffset }
+            : {}),
         }
       : undefined,
   };

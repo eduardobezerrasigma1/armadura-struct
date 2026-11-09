@@ -1,3 +1,8 @@
+import {
+  stirrupPrimitives,
+  stirrupDimensionLabels,
+  displayedBarGeometry,
+} from './stirrupGeometry';
 import { geometry, sampled, rotate, format } from './geometry';
 import { quantityLabel, assemblyLabel } from './detailQuantities';
 import { barCaption } from './drafting';
@@ -13,7 +18,9 @@ export function representationPoint(d: Detail, p: Point): Point {
   return { x: v.x + d.origin.x, y: v.y + d.origin.y };
 }
 export function representationPoints(b: Bar, d: Detail) {
-  return sampled(geometry(b).segments).map((p) => representationPoint(d, p));
+  return sampled((displayedBarGeometry(b) ?? geometry(b)).segments).map((p) =>
+    representationPoint(d, p),
+  );
 }
 export function showsPhysicalDescription(p: Project, id: string) {
   return !p.details.some(
@@ -38,11 +45,20 @@ export function representationPrimitives(
     textAlign: d.drafting?.align,
     textRotation: d.rotation ?? 0,
   });
-  const out: Primitive[] = [
-    { layer: 'REBATIMENTOS', points: representationPoints(b, d) },
-  ];
+  const out: Primitive[] = b.stirrupProfile
+    ? stirrupPrimitives(
+        b,
+        (p) => representationPoint(d, p),
+        d.scale ?? 1,
+        !!d.mirrored,
+      ).map((p) => ({ ...p, layer: 'REBATIMENTOS' }))
+    : [{ layer: 'REBATIMENTOS', points: representationPoints(b, d) }];
   const mode = d.identification ?? 'legacy';
-  if (d.label && mode !== 'none') {
+  if (
+    d.label &&
+    mode !== 'none' &&
+    b.stirrupDisplay?.identification !== false
+  ) {
     const mark =
       d.label.omitPrefix && b.mark.startsWith(d.label.omitPrefix)
         ? b.mark.slice(d.label.omitPrefix.length)
@@ -69,7 +85,7 @@ export function representationPrimitives(
       textAlign: 'center',
     });
   }
-  if (mode !== 'none' && !d.label)
+  if (mode !== 'none' && !d.label && b.stirrupDisplay?.identification !== false)
     out.push(
       text(
         mode === 'mark'
@@ -79,6 +95,12 @@ export function representationPrimitives(
         'IDENTIFICACAO',
       ),
     );
+  if (b.stirrupProfile) {
+    if (d.showDimensions !== false && b.stirrupDisplay?.dimensions !== false)
+      for (const v of stirrupDimensionLabels(b))
+        out.push(text(v.text, v.at, 'COTAS'));
+    return out;
+  }
   const v = geometry(b).vertices;
   for (let i = 0; d.showDimensions !== false && i < v.length - 1; i++) {
     if (b.kind === 'stirrup' && ![3, 4].includes(i)) continue;

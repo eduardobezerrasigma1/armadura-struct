@@ -4018,3 +4018,121 @@ button.hierarchy-drawing {
   font-size: 11px;
   overflow-wrap: anywhere;
 }
+
+.stirrup-dialog {
+  width: min(820px, 96vw);
+  max-height: 90dvh;
+  padding: 0;
+}
+.stirrup-dialog form {
+  display: flex;
+  flex-direction: column;
+  max-height: 90dvh;
+}
+.stirrup-dialog .panel-heading {
+  flex-shrink: 0;
+  justify-content: space-between;
+}
+.stirrup-dialog .panel-heading button {
+  font-size: 20px;
+  min-width: 32px;
+}
+.stirrup-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+}
+.stirrup-tabs button[aria-pressed='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.stirrup-dialog-body {
+  overflow: auto;
+  min-height: 0;
+  padding: 8px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 0.65fr);
+  gap: 16px;
+}
+.stirrup-dialog-body fieldset {
+  margin: 10px 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+}
+.stirrup-shape-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-self: start;
+  position: sticky;
+  top: 0;
+}
+.stirrup-shape-preview svg {
+  width: 100%;
+  height: 220px;
+  background: var(--panel);
+  color: var(--accent);
+  border: 1px solid var(--border);
+}
+.stirrup-shape-preview small {
+  line-height: 1.5;
+}
+.stirrup-dialog .check {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+.stirrup-dialog .check input {
+  width: auto;
+}
+.stirrup-dialog .dialog-actions {
+  padding: 10px 16px;
+  flex-shrink: 0;
+}
+.stirrup-criteria-note,
+.stirrup-error {
+  padding: 0 16px;
+  margin: 6px 0;
+}
+.stirrup-error {
+  color: var(--danger, #c8334b);
+}
+.stirrup-launch-panel {
+  position: absolute;
+  z-index: 8;
+  top: 10px;
+  left: 12px;
+  max-width: min(520px, calc(100% - 24px));
+  max-height: calc(100% - 20px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 4px 24px #0003;
+  font-size: 12px;
+}
+.stirrup-launch-panel p {
+  margin: 8px 0;
+}
+.stirrup-launch-panel .dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.stirrup-launch-panel button {
+  min-height: 30px;
+}
+@media (max-width: 650px) {
+  .stirrup-dialog-body {
+    grid-template-columns: 1fr;
+  }
+  .stirrup-shape-preview {
+    position: static;
+  }
+  .stirrup-shape-preview svg {
+    height: 160px;
+  }
+}

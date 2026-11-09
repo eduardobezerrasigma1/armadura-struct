@@ -1,3 +1,4 @@
+import { stirrupPrimitives } from './stirrupGeometry';
 import { dimensionReferenceIssue, formatDimension } from './maskDimensions';
 import {
   add,
@@ -241,6 +242,15 @@ function rawAnnotationPrimitives(a: Annotation, project: Project): Primitive[] {
 export function distributionStart(b: Bar) {
   return b.distribution?.start ?? b.origin;
 }
+export function distributionStep(b: Bar): number {
+  if (!b.distribution) return 0;
+  return b.quantitySource.kind === 'distribution' &&
+    b.quantitySource.mode === 'spacing' &&
+    b.quantitySource.fit === 'fixed'
+    ? b.quantitySource.spacing
+    : distance(distributionStart(b), b.distribution.end) /
+        Math.max(1, b.quantity - 1);
+}
 export function distributionOrigins(b: Bar, limit = 200): Point[] {
   if (!b.distribution) return [b.origin];
   const count = Math.min(b.quantity, limit),
@@ -249,7 +259,7 @@ export function distributionOrigins(b: Bar, limit = 200): Point[] {
     const index = Math.round((i * (b.quantity - 1)) / Math.max(1, count - 1));
     return add(
       start,
-      mul(sub(b.distribution!.end, start), index / Math.max(1, b.quantity - 1)),
+      mul(unit(sub(b.distribution!.end, start)), index * distributionStep(b)),
     );
   });
 }
@@ -260,21 +270,31 @@ export function distributionPrimitives(
 ): Primitive[] {
   if (!b.distribution) return [];
   const start = distributionStart(b),
-    end = b.distribution.end,
-    u = unit(sub(end, start)),
+    physicalEnd = b.distribution.end,
+    u = unit(sub(physicalEnd, start)),
+    end = add(start, mul(u, distributionStep(b) * Math.max(0, b.quantity - 1))),
     n = normal(u),
     h = paperTextHeight ?? b.drafting?.distributionHeight ?? 50;
-  const pts = distributionOrigins(b);
+  const shift = mul(n, b.distribution.annotationOffset ?? 0),
+    graphicStart = add(start, shift),
+    graphicEnd = add(end, shift);
+  const pts = distributionOrigins(b).map((p) => add(p, shift));
   const result = [
-    line([start, end], 'DISTRIBUICAO'),
+    ...(b.distribution.annotationOffset
+      ? [
+          line([start, graphicStart], 'DISTRIBUICAO'),
+          line([end, graphicEnd], 'DISTRIBUICAO'),
+        ]
+      : []),
+    line([graphicStart, graphicEnd], 'DISTRIBUICAO'),
     ...pts.map((p) =>
       line([sub(p, mul(n, h / 2)), add(p, mul(n, h / 2))], 'DISTRIBUICAO'),
     ),
   ];
   result.push(
     text(
-      `${quantityLabel(project, b)} ${b.mark} c/${format(distance(start, end) / Math.max(1, b.quantity - 1) / 10, 1)}${b.quantity > 200 ? ' (vista abreviada)' : ''}`,
-      add(mul(add(start, end), 0.5), mul(n, h * 1.3)),
+      `${quantityLabel(project, b)} ${b.mark}${b.stirrupProfile ? ` Ø${format(b.diameter, 1)}` : ''} c/${format(distributionStep(b) / 10, 1)}${b.stirrupProfile ? ' cm' : ''}${b.quantity > 200 ? ' (vista abreviada)' : ''}`,
+      add(mul(add(graphicStart, graphicEnd), 0.5), mul(n, h * 1.3)),
       h,
       angleOf(u),
       'DISTRIBUICAO',
@@ -286,6 +306,10 @@ export function repeatedGeometry(b: Bar, limit = 2000): Primitive[] {
   if (b.quantity > limit)
     throw new Error(
       `${b.mark}: exportação de estribos repetidos limitada a ${limit} peças por faixa. Use a representação por traços.`,
+    );
+  if (b.stirrupProfile)
+    return distributionOrigins(b, limit).flatMap((origin) =>
+      stirrupPrimitives({ ...b, origin }),
     );
   return distributionOrigins(b, limit).map((origin) => ({
     layer: 'ARMADURAS',
