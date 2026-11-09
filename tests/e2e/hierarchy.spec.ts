@@ -45,7 +45,7 @@ test('hierarchy CRUD, same-named elements, ownership, reparenting and persistent
     .click();
   await page
     .getByRole('dialog')
-    .getByRole('textbox')
+    .getByLabel('Nome do projeto', { exact: true })
     .fill('Hierarquia de teste');
   await confirmProjectReplacement(page);
   await page

@@ -11,11 +11,13 @@ export async function confirmProjectReplacement(page: Page) {
 
 export function useCompatibleProjectFolders() {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() =>
+    const disableDirectoryPicker = () =>
       Object.defineProperty(window, 'showDirectoryPicker', {
         value: undefined,
         configurable: true,
-      }),
-    );
+      });
+    await page.addInitScript(disableDirectoryPicker);
+    // Other suites may already have navigated in their own beforeEach.
+    await page.evaluate(disableDirectoryPicker);
   });
 }

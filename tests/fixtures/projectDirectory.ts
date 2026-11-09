@@ -19,70 +19,87 @@ export function installDirectoryMock() {
       release?.();
     },
   };
-  class Directory {
-    constructor(
-      private key: 'A' | 'B',
-      private path = '',
-    ) {}
-    get name() {
-      return this.key;
-    }
-    async queryPermission() {
-      return state.denied ? ('denied' as const) : ('granted' as const);
-    }
-    async *entries(): AsyncIterableIterator<[string, unknown]> {
-      const prefix = this.path ? this.path + '/' : '';
-      for (const name of [
-        ...roots[this.key].dirs,
-        ...roots[this.key].files.keys(),
-      ]) {
-        if (name.startsWith(prefix) && !name.slice(prefix.length).includes('/'))
-          yield [name.slice(prefix.length), {}];
-      }
-    }
-    async getDirectoryHandle(n: string, o?: { create?: boolean }) {
-      const path = this.path ? this.path + '/' + n : n;
-      if (!roots[this.key].dirs.has(path)) {
-        if (!o?.create) throw new DOMException('Ausente', 'NotFoundError');
-        roots[this.key].dirs.add(path);
-      }
-      return new Directory(this.key, path);
-    }
-    async getFileHandle(n: string, o?: { create?: boolean }) {
-      const path = this.path ? this.path + '/' + n : n,
-        files = roots[this.key].files;
-      if (!files.has(path)) {
-        if (!o?.create) throw new DOMException('Ausente', 'NotFoundError');
-        files.set(path, '');
-      }
-      const key = this.key;
-      return {
-        getFile: async () => new File([files.get(path)!], n),
-        createWritable: async () => {
-          if (state.error) throw new DOMException(state.error, state.error);
-          let staged = '';
-          return {
-            write: async (s: string) => {
-              staged = s;
-              if (state.pause) await new Promise<void>((r) => (release = r));
-              if (state.error) throw new DOMException(state.error, state.error);
-            },
-            close: async () => {
-              if (state.error) throw new DOMException(state.error, state.error);
-              files.set(path, staged);
-              state.writes.push({ folder: key, data: staged });
-            },
-            abort: async () => {},
-          };
-        },
-      };
-    }
+  type TestFile = {
+    getFile(): Promise<File>;
+    createWritable(): Promise<{
+      write(s: string): Promise<void>;
+      close(): Promise<void>;
+      abort(): Promise<void>;
+    }>;
+  };
+  type TestDirectory = {
+    name: string;
+    queryPermission(): Promise<'denied' | 'granted'>;
+    entries(): AsyncIterableIterator<[string, unknown]>;
+    getDirectoryHandle(
+      n: string,
+      o?: { create?: boolean },
+    ): Promise<TestDirectory>;
+    getFileHandle(n: string, o?: { create?: boolean }): Promise<TestFile>;
+  };
+  function directory(key: 'A' | 'B', path = ''): TestDirectory {
+    return {
+      name: key,
+      queryPermission: async () =>
+        state.denied ? ('denied' as const) : ('granted' as const),
+      entries: async function* (): AsyncIterableIterator<[string, unknown]> {
+        const prefix = path ? path + '/' : '';
+        for (const name of [...roots[key].dirs, ...roots[key].files.keys()]) {
+          if (
+            name.startsWith(prefix) &&
+            !name.slice(prefix.length).includes('/')
+          )
+            yield [name.slice(prefix.length), {}];
+        }
+      },
+      getDirectoryHandle: async (
+        n: string,
+        o?: { create?: boolean },
+      ): Promise<TestDirectory> => {
+        const next = path ? path + '/' + n : n;
+        if (!roots[key].dirs.has(next)) {
+          if (!o?.create) throw new DOMException('Ausente', 'NotFoundError');
+          roots[key].dirs.add(next);
+        }
+        return directory(key, next);
+      },
+      getFileHandle: async (n: string, o?: { create?: boolean }) => {
+        const name = path ? path + '/' + n : n,
+          files = roots[key].files;
+        if (!files.has(name)) {
+          if (!o?.create) throw new DOMException('Ausente', 'NotFoundError');
+          files.set(name, '');
+        }
+        return {
+          getFile: async () => new File([files.get(name)!], n),
+          createWritable: async () => {
+            if (state.error) throw new DOMException(state.error, state.error);
+            let staged = '';
+            return {
+              write: async (s: string) => {
+                staged = s;
+                if (state.pause) await new Promise<void>((r) => (release = r));
+                if (state.error)
+                  throw new DOMException(state.error, state.error);
+              },
+              close: async () => {
+                if (state.error)
+                  throw new DOMException(state.error, state.error);
+                files.set(name, staged);
+                state.writes.push({ folder: key, data: staged });
+              },
+              abort: async () => {},
+            };
+          },
+        };
+      },
+    };
   }
   Object.defineProperty(window, 'showDirectoryPicker', {
     configurable: true,
     value: async () => {
       if (state.cancel) throw new DOMException('Cancelado', 'AbortError');
-      return new Directory(state.selected);
+      return directory(state.selected);
     },
   });
   (window as unknown as { folderMock: typeof state }).folderMock = state;

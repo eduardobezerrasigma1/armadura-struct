@@ -36,7 +36,7 @@ async function fresh(page: Page) {
     .click();
   await page
     .getByRole('dialog')
-    .getByRole('textbox')
+    .getByLabel('Nome do projeto', { exact: true })
     .fill('Detalhamento de teste');
   await confirmProjectReplacement(page);
   await page.getByRole('button', { name: 'Criar projeto' }).click();
