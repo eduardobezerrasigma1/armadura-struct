@@ -8,10 +8,12 @@ export type MaskManipSession = {
   maskId: string;
   context: MaskDrawingContext;
   mode: MaskManipMode;
-  stage: 'selection' | 'base' | 'target';
+  stage: 'selection' | 'base' | 'target' | 'confirm';
   refs: MaskEntityRef[];
   base?: Point;
   cursor?: Point;
+  axisEnd?: Point;
+  removeSource?: boolean;
   hadOperations: boolean;
   issue?: string;
 };
@@ -22,6 +24,7 @@ export default function MaskManipPanel({
   onConfirm,
   onCancel,
   error,
+  onRemoveSource,
 }: {
   session: MaskManipSession;
   entities: MaskCadEntity[];
@@ -29,6 +32,7 @@ export default function MaskManipPanel({
   onConfirm: () => void;
   onCancel: () => void;
   error?: string;
+  onRemoveSource: (value: boolean) => void;
 }) {
   const [query, setQuery] = useState('');
   return (
@@ -56,8 +60,14 @@ export default function MaskManipPanel({
           {s.stage === 'selection'
             ? 'Selecionar entidades'
             : s.stage === 'base'
-              ? 'Ponto base'
-              : 'Destino / prévia'}
+              ? s.mode === 'mirror'
+                ? 'Primeiro ponto do eixo'
+                : 'Ponto base'
+              : s.stage === 'confirm'
+                ? 'Apagar origem?'
+                : s.mode === 'mirror'
+                  ? 'Segundo ponto do eixo'
+                  : 'Destino / prévia'}
         </span>
       </div>
       <p>
@@ -115,11 +125,49 @@ export default function MaskManipPanel({
       ) : (
         <p>
           {s.stage === 'base'
-            ? 'Clique no ponto base ou informe coordenadas no Comando CAD.'
+            ? s.mode === 'mirror'
+              ? 'Clique no primeiro ponto do eixo ou informe coordenadas no Comando CAD.'
+              : 'Clique no ponto base ou informe coordenadas no Comando CAD.'
             : s.mode === 'copy'
               ? 'Escolha destino(s) por clique/snap ou coordenadas. O conjunto original e a base permanecem para novas cópias. Enter/Esc encerra.'
-              : 'Clique no destino ou use coordenadas no Comando CAD.'}
+              : s.stage === 'confirm'
+                ? 'Eixo definido. Confira a prévia e confirme uma única operação.'
+                : s.mode === 'mirror'
+                  ? 'Clique no segundo ponto do eixo por snap ou coordenadas. Eixo mínimo: 0,01 mm.'
+                  : 'Clique no destino ou use coordenadas no Comando CAD.'}
         </p>
+      )}
+      {s.mode === 'mirror' && (
+        <p>
+          Textos: âncora refletida, caracteres legíveis, orientação entre −90° e
+          90° e alinhamento compensado. Retângulo oblíquo usa quatro vértices
+          exatos de polilinha fechada. Curvas importadas mantêm a representação
+          disponível. Canvas/PDF/DXF usam segmentos (erro radial nativo até 0,05
+          × escala mm); DXF escreve LWPOLYLINE. O projeto conserva círculo/arco
+          analítico.
+        </p>
+      )}
+      {s.stage === 'confirm' && (
+        <>
+          <label className="field">
+            Apagar objetos de origem?
+            <select
+              aria-label="Apagar objetos de origem?"
+              value={s.removeSource ? 'yes' : 'no'}
+              onChange={(e) => onRemoveSource(e.target.value === 'yes')}
+            >
+              <option value="no">
+                Não — manter originais e criar novos IDs (padrão)
+              </option>
+              <option value="yes">
+                Sim — substituir entidades e preservar IDs
+              </option>
+            </select>
+          </label>
+          <button className="primary" disabled={!!error} onClick={onConfirm}>
+            Confirmar espelhamento · Enter
+          </button>
+        </>
       )}
       <p className="field-help">
         Cotas existentes usam pontos estáticos, sem vínculo com entidades de

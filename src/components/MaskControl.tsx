@@ -58,7 +58,7 @@ export default function MaskControl({
     entityId?: string,
   ) => boolean;
   onManipulate: (
-    mode: 'copy' | 'erase',
+    mode: 'copy' | 'erase' | 'mirror',
     id: string,
     entityId?: string,
   ) => boolean;
@@ -209,7 +209,7 @@ export default function MaskControl({
             >
               Usar esta máscara e Offset
             </button>
-            {(['copy', 'erase'] as const).map((mode) => (
+            {(['mirror', 'copy', 'erase'] as const).map((mode) => (
               <button
                 key={mode}
                 disabled={!ready}
@@ -219,7 +219,9 @@ export default function MaskControl({
               >
                 {mode === 'copy'
                   ? 'Usar esta máscara e Copiar entidades'
-                  : 'Usar esta máscara e Apagar entidades'}
+                  : mode === 'mirror'
+                    ? 'Usar esta máscara e Espelhar entidades'
+                    : 'Usar esta máscara e Apagar entidades'}
               </button>
             ))}
             {(['trim', 'extend'] as const).map((mode) => (

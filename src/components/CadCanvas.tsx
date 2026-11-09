@@ -123,6 +123,7 @@ type Props = {
   extraSnapPoints?: Point[];
   previewLines?: Primitive[];
   previewBase?: Point;
+  mirrorAxis?: { base: Point; end: Point };
   onContextRequest: (ids: string[], point: Point, screen: Point) => void;
   commandActive?: boolean;
   layerContext?: string;
@@ -1464,6 +1465,31 @@ export default forwardRef<CadHandle, Props>(function CadCanvas(props, ref) {
               </g>
             </g>
           )}
+          {props.mirrorAxis &&
+            (() => {
+              const { base, end } = props.mirrorAxis,
+                dx = end.x - base.x,
+                dy = end.y - base.y,
+                n = Math.hypot(dx, dy);
+              if (n < 0.01) return null;
+              const length =
+                (Math.hypot(size.w, size.h) / view.s +
+                  Math.hypot(view.x - base.x, view.y - base.y)) *
+                2;
+              return (
+                <line
+                  data-testid="mirror-axis"
+                  x1={base.x - (dx / n) * length}
+                  y1={base.y - (dy / n) * length}
+                  x2={base.x + (dx / n) * length}
+                  y2={base.y + (dy / n) * length}
+                  stroke="#f59e0b"
+                  strokeWidth={1 / view.s}
+                  strokeDasharray={`${8 / view.s} ${5 / view.s}`}
+                  pointerEvents="none"
+                />
+              );
+            })()}
           {props.previewLines && (
             <g
               data-testid="transform-preview"

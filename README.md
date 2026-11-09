@@ -16,6 +16,7 @@ CAD 2D de armaduras do ecossistema [OpenStruct](https://openstruct.com.br), com 
 
 - [Offset de entidades de máscaras](docs/MASCARAS-OFFSET.md): distância explícita ou por dois pontos, seleção e lado físico, prévia, repetições e contornos com remanescentes, sem gerar aço.
 
+- [Espelhar entidades de máscaras](docs/MASCARAS-ESPELHAR.md): eixo por dois pontos, prévia e escolha explícita sobre os originais, reutilizando Manipular.
 - [Copiar e Apagar entidades de máscaras](docs/MASCARAS-COPIAR-APAGAR.md): seleção acumulada no CAD, base comum e múltiplos destinos, prévia, histórico e proteções, sem alterar aço.
 
 - [Ajustar escala da máscara por dois pontos](docs/ESCALA-MASCARA.md): P1 fixo, distância real em mm/cm/m e decimal pt-BR, confirmação imediata, proteções e histórico sem alterar aço.

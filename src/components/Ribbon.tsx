@@ -238,7 +238,6 @@ export default function Ribbon({
               'Espelhar entidades da máscara',
               FlipHorizontal2,
             ),
-            disabled: true,
             caption: 'Espelhar',
           },
           {

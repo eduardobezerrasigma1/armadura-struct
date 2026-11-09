@@ -27,6 +27,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
+          name: mask-mirror-evidence
+          if-no-files-found: ignore
+          path: docs/mask-mirror-*.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
           name: graphic-properties-evidence
           if-no-files-found: ignore
           path: docs/match-properties-*.png

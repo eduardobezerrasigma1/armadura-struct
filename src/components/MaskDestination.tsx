@@ -83,7 +83,7 @@ export default function MaskDestination({
   onCreate: () => void;
   onCalibrate: () => void;
   onCadEdit: (mode: 'trim' | 'extend') => void;
-  onManipulate: (mode: 'copy' | 'erase') => void;
+  onManipulate: (mode: 'copy' | 'erase' | 'mirror') => void;
   onOffset: () => void;
   onBatch: (mode: 'import' | 'associate') => void;
 }) {
@@ -140,7 +140,11 @@ export default function MaskDestination({
         value=""
         onChange={(e) => {
           if (e.target.value === 'offset') onOffset();
-          else if (e.target.value === 'copy' || e.target.value === 'erase')
+          else if (
+            e.target.value === 'copy' ||
+            e.target.value === 'erase' ||
+            e.target.value === 'mirror'
+          )
             onManipulate(e.target.value);
           else if (e.target.value)
             onCadEdit(e.target.value as 'trim' | 'extend');
@@ -150,6 +154,7 @@ export default function MaskDestination({
         <option value="offset">Offset — Paralelas</option>
         <option value="trim">Ajustar — Aparar / Trim</option>
         <option value="extend">Estender — Extend</option>
+        <option value="mirror">Espelhar entidades</option>
         <option value="copy">Copiar entidades</option>
         <option value="erase">Apagar entidades</option>
       </select>

@@ -28,7 +28,7 @@ import {
   applyMaskManipulation,
   type MaskManipMode,
   type MaskManipPlan,
-  type MaskCopyTransform,
+  type MaskManipTransform,
 } from './domain/maskManipulation';
 import { maskPoint, maskPrimitives } from './cad/import';
 import MaskCadPanel, { type MaskCadSession } from './components/MaskCadPanel';
@@ -672,11 +672,11 @@ export default function App() {
   const canvas = () => (activeSheet ? paperCanvas.current : cad.current);
   const captureDocument = (): DocumentSession => ({
     selected,
-    maskId: maskOffset || match ? null : maskId,
+    maskId: maskOffset || match || maskManip ? null : maskId,
     tool: nativeKind || tool === 'follow' ? 'select' : tool,
     draft: nativeKind ? [] : draft,
     page,
-    command: nativeKind || maskOffset || match ? '' : command,
+    command: nativeKind || maskOffset || match || maskManip ? '' : command,
     detailId: activeDetailId,
     isolation: activeDrawing ? undefined : isolatedDetailId,
     camera: canvas()?.getState() ?? sessions.current.get(documentKey)?.camera,
@@ -2452,10 +2452,15 @@ export default function App() {
   const manipTransform = (
     s: MaskManipSession,
     at = s.cursor,
-  ): MaskCopyTransform | undefined =>
-    s.base && at ? { kind: 'translate', delta: sub(at, s.base) } : undefined;
+  ): MaskManipTransform | undefined =>
+    s.base && (s.axisEnd ?? at)
+      ? s.mode === 'mirror'
+        ? { kind: 'mirror', base: s.base, axisEnd: (s.axisEnd ?? at)! }
+        : { kind: 'translate', delta: sub(at!, s.base) }
+      : undefined;
   const manipPreview = useMemo<{ plan?: MaskManipPlan; error?: string }>(() => {
-    if (!maskManip || maskManip.stage !== 'target') return {};
+    if (!maskManip || !['target', 'confirm'].includes(maskManip.stage))
+      return {};
     try {
       const t = manipTransform(maskManip);
       return t
@@ -2467,6 +2472,7 @@ export default function App() {
               maskManip.mode,
               maskManip.context,
               t,
+              maskManip.removeSource,
             ),
           }
         : {};
@@ -2527,6 +2533,7 @@ export default function App() {
         s.mode,
         maskDrawingContext,
         manipTransform(s, at),
+        s.removeSource,
       );
       const next = applyMaskManipulation(s.project, plan, maskDrawingContext);
       if (next === s.project) {
@@ -2579,7 +2586,8 @@ export default function App() {
       } catch (e) {
         setMaskManip({ ...s, issue: (e as Error).message });
       }
-    } else if (s.mode === 'copy' && s.stage === 'target') endMaskManip();
+    } else if (s.mode === 'mirror' && s.stage === 'confirm') applyManip();
+    else if (s.mode === 'copy' && s.stage === 'target') endMaskManip();
     else
       setMaskManip({
         ...s,
@@ -3158,6 +3166,17 @@ export default function App() {
       return;
     }
     if (maskManip) {
+      if (
+        ![point.x, point.y].every(
+          (n) => Number.isFinite(n) && Math.abs(n) <= 1e9,
+        )
+      ) {
+        setMaskManip({
+          ...maskManip,
+          issue: 'Informe um ponto finito dentro dos limites do modelo.',
+        });
+        return;
+      }
       if (maskManip.stage === 'selection')
         toggleManipEntity(
           hitMaskCadEntity(
@@ -3175,7 +3194,28 @@ export default function App() {
           cursor: undefined,
           issue: undefined,
         });
-      else applyManip(point);
+      else if (maskManip.mode === 'mirror') {
+        if (maskManip.stage !== 'target') return;
+        try {
+          previewMaskManipulation(
+            maskManip.project,
+            maskManip.maskId,
+            maskManip.refs,
+            'mirror',
+            maskDrawingContext,
+            { kind: 'mirror', base: maskManip.base!, axisEnd: point },
+          );
+          setMaskManip({
+            ...maskManip,
+            axisEnd: point,
+            stage: 'confirm',
+            removeSource: false,
+            issue: undefined,
+          });
+        } catch (e) {
+          setMaskManip({ ...maskManip, issue: (e as Error).message });
+        }
+      } else applyManip(point);
       return;
     }
 
@@ -3782,6 +3822,7 @@ export default function App() {
       endMaskOffset();
     const manipActions: Partial<Record<Action, MaskManipMode>> = {
       'mask-copy': 'copy',
+      'mask-mirror': 'mirror',
       'mask-erase': 'erase',
     };
     if (manipActions[a]) {
@@ -4687,7 +4728,9 @@ export default function App() {
       REMOVERVERTICE: 'remove-vertex',
       ROTACIONAR: 'rotate',
       GIRAR: 'rotate',
-      ESPELHAR: 'mirror',
+      ESPELHAR: tab === 'Máscaras' ? 'mask-mirror' : 'mirror',
+      MIRROR: 'mask-mirror',
+      ESPELHARMASCARA: 'mask-mirror',
       DUPLICAR: 'clone-armature',
       CLONAR: 'clone-armature',
       DUPLICARARMADURA: 'clone-armature',
@@ -5046,6 +5089,7 @@ export default function App() {
           dimensions,
           'mask-offset': !!maskOffset,
           'mask-copy': maskManip?.mode === 'copy',
+          'mask-mirror': maskManip?.mode === 'mirror',
           'mask-erase': maskManip?.mode === 'erase',
           'mask-trim': maskCad?.mode === 'trim',
           'mask-extend': maskCad?.mode === 'extend',
@@ -5578,6 +5622,16 @@ export default function App() {
                     ? vertexPreview.points
                     : undefined
                 }
+                mirrorAxis={
+                  maskManip?.mode === 'mirror' &&
+                  maskManip.base &&
+                  (maskManip.axisEnd ?? maskManip.cursor)
+                    ? {
+                        base: maskManip.base,
+                        end: (maskManip.axisEnd ?? maskManip.cursor)!,
+                      }
+                    : undefined
+                }
                 previewBase={
                   vertexRequest?.mode === 'lengthen' &&
                   vertexPreview.previewBar &&
@@ -5740,6 +5794,9 @@ export default function App() {
                   onConfirm={finishManip}
                   onCancel={endMaskManip}
                   error={manipPreview.error}
+                  onRemoveSource={(value) =>
+                    setMaskManip((s) => (s ? { ...s, removeSource: value } : s))
+                  }
                 />
               )}
               {maskCad && (
