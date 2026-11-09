@@ -668,7 +668,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const focus = () => setFolderEpoch((n) => n + 1);
+    const focus = () => {
+      if (projectFolderLabel(historyRef.current.present))
+        setFolderEpoch((n) => n + 1);
+    };
     const leaving = (e: BeforeUnloadEvent) => {
       if (hasPendingFolderWrites()) {
         e.preventDefault();
@@ -1010,10 +1013,12 @@ export default function App() {
       })
       .catch(() => {
         recoveryBlocked.current = historyRef.current.present.id;
-        if (alive)
+        if (alive) {
+          setSaveState('Falha na recuperação; abra uma cópia salva');
           notify(
             'Não foi possível recuperar o projeto local. Abra uma cópia salva.',
           );
+        }
       })
       .finally(() => {
         if (alive) setReady(true);
@@ -7125,7 +7130,9 @@ export default function App() {
                 attachProjectFolder(next, folder, raw);
                 if (!commit(() => next)) return false;
                 setModal(null);
+                select([]);
                 setTool('select');
+                setTimeout(() => canvas()?.fit(), 50);
                 return true;
               } catch (e) {
                 notify(String(e));

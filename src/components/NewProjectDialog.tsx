@@ -401,7 +401,7 @@ export default function NewProjectDialog({
               {error('name')}
             </p>
           )}
-          <section aria-label="Pasta do projeto">
+          <section aria-label="Destino do projeto">
             <label className="field">
               Pasta do projeto
               <input
