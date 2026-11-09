@@ -154,9 +154,7 @@ test('moving selected content preserves geometry and protected deletion leaves t
     target = withDetail.hierarchy.details.find(
       (d: any) => d.name === 'Montagem',
     ).id;
-  await page
-    .getByRole('button', { name: 'Fechar edição da hierarquia', exact: true })
-    .click();
+  await expect(page.locator('.hierarchy-editor')).toHaveCount(0);
   await page
     .getByLabel('Detalhamento ativo', { exact: true })
     .selectOption(before.hierarchy.details[0].id);

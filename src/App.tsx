@@ -6302,7 +6302,15 @@ export default function App() {
                 }}
                 onSelectDetail={(id) => select(detailObjectIds(p, id))}
                 onActiveDetail={activateDetail}
-                onHierarchy={(next) => commit(() => next)}
+                onHierarchy={(next, expected) =>
+                  commit((current) => {
+                    if (current !== expected)
+                      throw Error(
+                        'O projeto mudou. Reabra a ação da hierarquia.',
+                      );
+                    return next;
+                  })
+                }
                 selected={selected}
                 maskId={maskId}
                 onSelect={select}

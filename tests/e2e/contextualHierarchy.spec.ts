@@ -177,7 +177,9 @@ test('rascunho, troca de ação, Esc, erro e contexto inválido não criam resí
   await expect(
     page.getByRole('button', { name: 'Criar grupo', exact: true }),
   ).toBeDisabled();
-  await expect(page.getByRole('alert')).toContainText('projeto mudou');
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'projeto mudou' }),
+  ).toBeVisible();
   await page
     .getByRole('button', { name: 'Cancelar edição', exact: true })
     .click();

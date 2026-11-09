@@ -61,7 +61,7 @@ export default function HierarchyNavigator({
   project: Project;
   activeDetailId: string;
   onActive: (id: string) => void;
-  onChange: (project: Project) => boolean | void;
+  onChange: (project: Project, expected: Project) => boolean | void;
   selected: string[];
   search: string;
   onSearch: (text: string) => void;
@@ -145,6 +145,23 @@ export default function HierarchyNavigator({
   const [target, setTarget] = useState('');
   const nameInput = useRef<HTMLInputElement>(null);
   const submitted = useRef(false);
+  const [finishing, setFinishing] = useState(false);
+  const finishTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  useEffect(() => () => clearTimeout(finishTimer.current), []);
+  const finishEditor = (createdId?: string) => {
+    setFinishing(true);
+    finishTimer.current = setTimeout(() => {
+      setEditor(null);
+      setFinishing(false);
+      if (createdId)
+        document
+          .getElementById(`hierarchy-${createdId}`)
+          ?.querySelector<HTMLButtonElement>('.hierarchy-name')
+          ?.focus();
+    }, 350);
+  };
   const trigger = useRef<HTMLElement | null>(null);
   const initial = useRef({ name: '', parent: '' });
   const lastCreated = useRef<{ kind: HierarchyKind; id: string } | null>(null);
@@ -182,6 +199,7 @@ export default function HierarchyNavigator({
     action();
   };
   const begin = (kind: HierarchyKind, id?: string, parentOverride?: string) => {
+    if (finishing) return false;
     if (!allowAction()) return false;
     trigger.current = document.activeElement as HTMLElement | null;
     submitted.current = false;
@@ -230,7 +248,7 @@ export default function HierarchyNavigator({
 
   const apply = (change: () => Project) => {
     try {
-      if (onChange(change()) === false)
+      if (onChange(change(), project) === false)
         throw Error(
           'A alteração não foi aplicada. Confira o contexto e tente novamente.',
         );
@@ -363,7 +381,7 @@ export default function HierarchyNavigator({
               className="hierarchy-row-action"
               title={`Adicionar ${kind === 'floor' ? 'elemento (grupo)' : 'detalhamento'} em ${destination}`}
               aria-label={`Adicionar ${kind === 'floor' ? 'elemento' : 'detalhamento'} em ${destination}`}
-              disabled={!!scopeDetailId}
+              disabled={!!scopeDetailId || finishing}
               onClick={() =>
                 begin(kind === 'floor' ? 'element' : 'detail', undefined, id)
               }
@@ -376,7 +394,7 @@ export default function HierarchyNavigator({
               type="button"
               className="detail-edit-button"
               aria-label={`Abrir edição isolada de ${title}`}
-              disabled={!!scopeDetailId}
+              disabled={!!scopeDetailId || finishing}
               onClick={() => openDetail(() => onEditDetail(id))}
             >
               ↗
@@ -424,7 +442,7 @@ export default function HierarchyNavigator({
             type="button"
             key={kind}
             aria-label={`Adicionar ${nouns[kind]}`}
-            disabled={!!scopeDetailId}
+            disabled={!!scopeDetailId || finishing}
             onClick={() => begin(kind)}
           >
             <Plus size={12} />
@@ -522,8 +540,14 @@ export default function HierarchyNavigator({
         <form
           className="hierarchy-editor"
           aria-label={`${editor.id ? 'Editar' : 'Criar'} ${nouns[editor.kind]}`}
+          inert={finishing}
+          aria-busy={finishing}
           onKeyDown={(e) => {
             e.stopPropagation();
+            if (finishing) {
+              e.preventDefault();
+              return;
+            }
             if (e.key === 'Escape') {
               e.preventDefault();
               cancel();
@@ -552,7 +576,7 @@ export default function HierarchyNavigator({
                   ),
                 )
               ) {
-                setEditor(null);
+                finishEditor();
                 return;
               }
             } else {
@@ -576,13 +600,7 @@ export default function HierarchyNavigator({
                   id: createdId,
                   name: name.trim(),
                 });
-                setEditor(null);
-                requestAnimationFrame(() =>
-                  document
-                    .getElementById(`hierarchy-${createdId}`)
-                    ?.querySelector<HTMLButtonElement>('.hierarchy-name')
-                    ?.focus(),
-                );
+                finishEditor(createdId);
                 return;
               }
             }
@@ -642,7 +660,7 @@ export default function HierarchyNavigator({
                     : 'Grupo do detalhamento'
                 }
                 value={parent}
-                disabled={!!scopeDetailId}
+                disabled={!!scopeDetailId || finishing}
                 onChange={(e) => setParent(e.target.value)}
               >
                 {(editor.kind === 'element'
@@ -673,7 +691,7 @@ export default function HierarchyNavigator({
                       : 'Elemento removido';
                   })()}
           </p>
-          {stale && (
+          {stale && !finishing && (
             <p role="alert">
               O projeto mudou. Cancele e reabra a ação; o rascunho não foi
               aplicado.
@@ -688,7 +706,7 @@ export default function HierarchyNavigator({
                 Selecionar conjunto
               </button>
             )}
-            <button type="submit" disabled={stale}>
+            <button type="submit" disabled={stale || finishing}>
               {editor.id ? 'Salvar alterações' : `Criar ${nouns[editor.kind]}`}
             </button>
             {editor.id && (
