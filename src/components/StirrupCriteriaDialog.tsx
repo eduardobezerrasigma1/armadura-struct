@@ -1,12 +1,14 @@
+import type { Bar } from '../domain/types';
 import { useEffect, useRef, useState } from 'react';
 import { criteriaBar } from '../domain/stirrups';
-import { path, bounds, geometry, format } from '../domain/geometry';
+import { path, bounds, geometry, format, world } from '../domain/geometry';
 import { stirrupEnvelope } from '../domain/stirrupGeometry';
 import type { StirrupCriteria, StirrupProfile } from '../domain/stirrupSchema';
 
 export default function StirrupCriteriaDialog({
   initial,
   editMark,
+  mirrored,
   onAccept,
   onDraw,
   onClose,
@@ -14,6 +16,7 @@ export default function StirrupCriteriaDialog({
 }: {
   initial: StirrupCriteria;
   editMark?: string;
+  mirrored?: boolean;
   issue?: string;
   onAccept: (c: StirrupCriteria) => void;
   onDraw: (c: StirrupCriteria) => void;
@@ -38,15 +41,18 @@ export default function StirrupCriteriaDialog({
   };
   const profile = (patch: Partial<StirrupProfile>) =>
     change({ profile: { ...c.profile, ...patch } });
-  let preview,
+  let preview: Bar | undefined,
     previewIssue = '';
   try {
-    preview = criteriaBar(c, { x: 0, y: 0 }, 'N?', 'preview');
+    preview = {
+      ...criteriaBar(c, { x: 0, y: 0 }, 'N?', 'preview'),
+      stirrupMirrored: mirrored,
+    };
   } catch (e) {
     previewIssue = (e as Error).message;
   }
   const box = preview
-    ? bounds(geometry(preview).vertices)
+    ? bounds(geometry(preview).vertices.map((p) => world(p, preview!)))
     : { x: 0, y: 0, width: 200, height: 400 };
   const margin = Math.max(box.width, box.height) * 0.12 + 20;
   const num = (
@@ -334,7 +340,7 @@ export default function StirrupCriteriaDialog({
                   );
                 })}
                 <p className="field-help">
-                  Fechado: contorno completo com encontro das duas pontas;
+                  Fechado: pontas no canto inicial (retangular/livre), com os
                   ganchos somados, sem solda presumida. Aberto retangular: três
                   lados (U). Ramos múltiplos, grampos e abas de laje ficam para
                   outra entrega.
@@ -474,6 +480,7 @@ export default function StirrupCriteriaDialog({
                 {preview && (
                   <path
                     d={path(geometry(preview).segments)}
+                    transform={`rotate(${c.rotation})`}
                     fill="none"
                     stroke="currentColor"
                     strokeWidth={Math.max(

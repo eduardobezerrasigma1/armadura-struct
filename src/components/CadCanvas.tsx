@@ -1642,7 +1642,9 @@ export default forwardRef<CadHandle, Props>(function CadCanvas(props, ref) {
         <span>VISTA SUPERIOR</span>
         <b>XY</b>
       </div>
-      {project.bars.length === 0 &&
+      {!props.commandActive &&
+        !props.previewLines?.length &&
+        project.bars.length === 0 &&
         project.masks.length === 0 &&
         project.polylines.length === 0 &&
         project.annotations.length === 0 && (

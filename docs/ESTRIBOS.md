@@ -11,7 +11,7 @@ Em **Armaduras**, **Critérios do estribo** fica junto de **Estribo**. O atalho 
 
 **Desenhar forma livre no CAD** suspende a janela. Clique os vértices com os snaps ou digite coordenadas no comando CAD. Enter conclui e retorna à prévia dos critérios. Não repita o primeiro ponto: o fechamento é automático. São aceitos de 2 a 100 vértices (mínimo 3 para fechado), com dobras analíticas; cruzamentos, retornos de 180° e trechos insuficientes são recusados. **Voltar etapa** remove o último ponto durante a captura.
 
-O contorno retangular aberto tem três lados em U. O circular aberto usa a abertura angular informada; fechado percorre 360°. Contornos fechados encontram suas pontas no meio do primeiro trecho (retangular/livre) ou no ponto inicial circular. Os ganchos são acrescentados nas duas pontas; não há solda, transpasse extra ou verificação de colisão/ancoragem presumidos. Confira sentidos e fechamento na prévia. Ramos múltiplos, grampos S/C, abas de laje e séries variáveis não são modelados nesta entrega.
+O contorno retangular aberto tem três lados em U. O circular aberto usa a abertura angular informada; fechado percorre 360°. Nos contornos retangular/livre com ganchos, o fechamento fica no primeiro canto teórico e os dois ganchos substituem a dobra desse canto; os trechos de entrada/saída são recuados pelo raio e ângulo da dobra (gancho 180° usa recuo 2R). Sem ganchos, o contorno fecha com todas as dobras do corpo. O circular fecha no ponto inicial da curva. Os ganchos são acrescentados nas duas pontas; não há solda, transpasse extra ou verificação de colisão/ancoragem presumidos. Confira sentidos e fechamento na prévia. Ramos múltiplos, grampos S/C, abas de laje e séries variáveis não são modelados nesta entrega.
 
 ## Lançamento
 

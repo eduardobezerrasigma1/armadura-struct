@@ -155,7 +155,29 @@ export function stirrupGeometry(b: Bar, bodyOnly = false): Geometry {
       errors.push('Não repita o primeiro vértice: o fechamento é automático.');
     if (selfIntersects(points, p.closed))
       errors.push('O contorno cruza ou sobrepõe a si mesmo.');
-    if (p.closed) {
+    if (p.closed && (p.start.angle || p.end.angle)) {
+      // Close at the first theoretical corner. The two hook bends replace that
+      // corner, as in the legacy rectangular family; never add a loop mid-face.
+      const corner = points[0],
+        next = points[1],
+        last = points.at(-1)!;
+      const cut = (angle: number) =>
+        angle === 180 ? 2 * r : r * Math.tan((angle * Math.PI) / 360);
+      const startCut = cut(p.start.angle),
+        endCut = cut(p.end.angle);
+      if (
+        startCut >= distance(corner, next) ||
+        endCut >= distance(last, corner)
+      )
+        errors.push(
+          'Trecho insuficiente para acomodar o gancho no canto de fechamento.',
+        );
+      points = [
+        add(corner, mul(unit(sub(next, corner)), startCut)),
+        ...points.slice(1),
+        add(corner, mul(unit(sub(last, corner)), endCut)),
+      ];
+    } else if (p.closed) {
       const mid = mul(add(points[0], points[1]), 0.5);
       points = [mid, ...points.slice(1), points[0], mid];
     }

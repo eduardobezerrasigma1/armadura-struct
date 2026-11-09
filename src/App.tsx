@@ -3635,7 +3635,13 @@ export default function App() {
       ...s.c,
       profile: {
         ...s.c.profile,
-        points: s.points.map((p) => rotate(sub(p, s.points[0]), -s.c.rotation)),
+        points: s.points.map((p) => {
+          const local = rotate(sub(p, s.points[0]), -s.c.rotation);
+          return s.editId &&
+            s.base.bars.find((b) => b.id === s.editId)?.stirrupMirrored
+            ? { x: local.x, y: -local.y }
+            : local;
+        }),
       },
     };
     try {
@@ -5279,6 +5285,7 @@ export default function App() {
     try {
       const next = await readProjectFile(file);
       if (!commit(() => next)) return;
+      stirrupCriteria.current = undefined;
       select([]);
       setTool('select');
       setTimeout(() => canvas()?.fit(), 50);
@@ -5672,6 +5679,12 @@ export default function App() {
       {stirrupDialog && (
         <StirrupCriteriaDialog
           initial={stirrupDialog.c}
+          mirrored={
+            !!(
+              stirrupDialog.editId &&
+              p.bars.find((b) => b.id === stirrupDialog.editId)?.stirrupMirrored
+            )
+          }
           editMark={
             stirrupDialog.editId
               ? p.bars.find((b) => b.id === stirrupDialog.editId)?.mark

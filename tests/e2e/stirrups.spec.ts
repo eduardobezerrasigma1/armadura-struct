@@ -74,12 +74,15 @@ test('critérios, seção, faixa e identificação formam uma posição atômica
   await d.getByRole('button', { name: 'Usar critérios e lançar' }).click();
   await command(page, '1500,-1000');
   await expect(panel(page)).toContainText('primeira face');
+  await expect(page.locator('.canvas-empty')).toHaveCount(0);
+  await command(page, 'F');
   await page.screenshot({ path: 'docs/stirrup-section.png' });
   for (const value of ['0,0', '1100,0', '0,-300']) await command(page, value);
   await expect(panel(page)).toContainText('6 peça(s)');
   await expect(panel(page)).toContainText('195,00 mm');
   const draft = await save(page);
   expect(draft).toEqual(before);
+  await command(page, 'F');
   await page.screenshot({ path: 'docs/stirrup-preview.png' });
   await panel(page)
     .getByRole('button', { name: 'Confirmar lançamento' })
@@ -168,6 +171,10 @@ test('circular analítico, edição explícita e forma livre com teclado em jane
   });
   await d.getByLabel('Formato do estribo').selectOption('circle');
   await d.getByLabel('Diâmetro da seção (mm)').fill('1000');
+  await d.getByLabel('Rotação da seção (graus)').fill('90');
+  await expect(
+    d.getByRole('img', { name: 'Forma do estribo' }).locator('path'),
+  ).toHaveAttribute('transform', 'rotate(90)');
   for (const i of [1, 2])
     await d.getByLabel(`Ângulo do gancho ${i}`).selectOption('0');
   await d.getByRole('button', { name: 'Distribuição', exact: true }).click();
@@ -207,5 +214,8 @@ test('circular analítico, edição explícita e forma livre com teclado em jane
   expect(p.bars[0]).toEqual(edited.bars[0]);
   expect(p.bars[1].stirrupProfile.shape).toBe('free');
   expect(p.bars[1].stirrupProfile.points).toHaveLength(4);
+  expect(p.bars[1].rotation).toBe(90);
+  expect(p.bars[1].stirrupProfile.points[1].x).toBeCloseTo(0);
+  expect(p.bars[1].stirrupProfile.points[1].y).toBeCloseTo(-400);
 });
 useCompatibleProjectFolders();

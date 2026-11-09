@@ -79,13 +79,12 @@ describe('Critérios e lançamento de estribos', () => {
     expect(() => bar({ ...c, width: 60 })).toThrow(/cobrimento|insuficiente/);
   });
   it('ganchos independentes somam arco e trecho reto; multiplicador phi reage à bitola', () => {
-    const c = bare(),
-      body = geometry(bar(c)).length;
+    const c = bare();
     c.profile.start = { angle: 90, mode: 'diameters', length: 10, turn: 1 };
     c.profile.end = { angle: 180, mode: 'mm', length: 80, turn: -1 };
     const b = bar(c),
       r = (b.mandrel + b.diameter) / 2;
-    expect(geometry(b).length - body).toBeCloseTo(
+    expect(geometry(b).length - stirrupGeometry(b, true).length).toBeCloseTo(
       r * Math.PI * 1.5 + 10 * b.diameter + 80,
       9,
     );
@@ -96,6 +95,32 @@ describe('Critérios e lançamento de estribos', () => {
       distance(geometry(bigger).segments[0].a, geometry(bigger).segments[0].b),
     ).toBeCloseTo(100);
     expect(criteriaFromBar(b).profile).toEqual(c.profile);
+  });
+  it('fechamento retangular com 135° usa canto e conserva o comprimento da geometria legada equivalente', () => {
+    const c = defaultStirrupCriteria();
+    Object.assign(c, { width: 230, height: 430, diameter: 10, mandrel: 50 });
+    const b = bar(c),
+      old = {
+        ...newBar('N1'),
+        kind: 'stirrup' as const,
+        width: 230,
+        height: 430,
+        diameter: 10,
+        mandrel: 50,
+        hook: 100,
+      };
+    expect(geometry(b).length).toBeCloseTo(geometry(old).length, 9);
+    expect(geometry(b).segments[0].a.x).toBeCloseTo(
+      geometry(b).segments.at(-1)!.b.x,
+      9,
+    );
+    expect(geometry(b).segments[0].a.y).toBeCloseTo(
+      geometry(b).segments.at(-1)!.b.y,
+      9,
+    );
+    expect(stirrupGeometry(b, true).segments[0].a).toEqual(
+      pt(30 * Math.tan((3 * Math.PI) / 8), 0),
+    );
   });
   it('circular é analítico, aberto ou fechado; orientação e visualização não alteram aço', () => {
     const c = bare();
