@@ -1,3 +1,4 @@
+import { remapDimensionMasks } from './maskDimensions';
 import { mergeLayers, remapLayer } from './layers';
 import {
   armatureReferenceEdges,
@@ -574,6 +575,7 @@ export function previewDetailTransfer(
       ...[...replacements].filter(([id]) => !oldById.has(id)).map(([, b]) => b),
     ];
     const oldObjects = contentObjects(target).filter((o) => ownsOld(o.id));
+    const graphicIds: Record<string, string> = {};
     const usedGraphics = new Set<string>();
     const objectId = (sourceId: string, kind: (typeof fields)[number]) => {
       const refs = new Set(
@@ -588,6 +590,7 @@ export function previewDetailTransfer(
       );
       const existing = refs.size === 1 ? [...refs][0] : undefined;
       const id = existing && !usedGraphics.has(existing) ? existing : fresh();
+      graphicIds[sourceId] = id;
       usedGraphics.add(id);
       originUpdates.set(id, objectOrigin(source, sourceId));
       return id;
@@ -658,10 +661,15 @@ export function previewDetailTransfer(
       });
       return [...existing, ...imported];
     };
-    const annotations = copyGraphics('annotations') as Annotation[],
-      details = copyGraphics('details') as Detail[];
+    let annotations = copyGraphics('annotations') as Annotation[];
+    const details = copyGraphics('details') as Detail[];
     const masks = copyGraphics('masks') as Project['masks'],
       polylines = copyGraphics('polylines') as Project['polylines'];
+    annotations = annotations.map((a) =>
+      source.annotations.some((s) => graphicIds[s.id] === a.id)
+        ? remapDimensionMasks(a, graphicIds)
+        : a,
+    );
     const oldIds = new Set(oldObjects.map((o) => o.id));
     const objectDetails = Object.fromEntries(
       Object.entries(next.hierarchy.objectDetails).filter(

@@ -164,6 +164,6 @@ it('legacy formats 1–9 keep marks until an explicit preview/apply', () => {
     );
     expect(q.bars).toEqual(p.bars);
     expect(q.numbering).toBeUndefined();
-    expect(q.schema).toBe('armadurastruct/23');
+    expect(q.schema).toBe('armadurastruct/24');
   }
 });

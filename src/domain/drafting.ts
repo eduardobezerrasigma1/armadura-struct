@@ -1,3 +1,4 @@
+import { dimensionReferenceIssue, formatDimension } from './maskDimensions';
 import {
   add,
   rotate,
@@ -173,7 +174,11 @@ function rawAnnotationPrimitives(a: Annotation, project: Project): Primitive[] {
       tick(start, axis, h),
       tick(end, axis, h),
       text(
-        a.label || format(distance(start, end) / 10, 1),
+        (dimensionReferenceIssue(project, a) ? '[REFERÊNCIA ALTERADA] ' : '') +
+          (a.label ||
+            (a.dimensionPresentation
+              ? formatDimension(distance(start, end), a.dimensionPresentation)
+              : format(distance(start, end) / 10, 1))),
         add(mul(add(start, end), 0.5), mul(n, h * 0.55)),
         h,
         angleOf(axis),

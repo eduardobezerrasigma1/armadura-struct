@@ -1,3 +1,4 @@
+import { scaleDimensionReferences } from './maskDimensions';
 import { nativePrimitive } from './nativeMasks';
 import { drawingLayerSchema } from './layerSchema';
 import { defaultLayers } from './layers';
@@ -18,7 +19,7 @@ import { mul } from './geometry';
 import { repetitionNames } from './detailQuantities';
 import type { Bar, Point, Project } from './types';
 
-export const DETAIL_PACKAGE_SCHEMA = 'openstruct.detail/14' as const;
+export const DETAIL_PACKAGE_SCHEMA = 'openstruct.detail/15' as const;
 const id = z.string().min(1).max(200);
 const named = (max = 100) =>
   z.object({ id, name: z.string().trim().min(1).max(max) });
@@ -39,6 +40,7 @@ export const detailPackageSchema = z
       'openstruct.detail/12',
       'openstruct.detail/13',
       'openstruct.detail/14',
+      'openstruct.detail/15',
     ]),
     layers: z.array(drawingLayerSchema).min(1).max(2000).optional(),
     fabricationPositions: z
@@ -168,6 +170,9 @@ function scaleContent(value: DetailPackage, k: number): DetailPackage {
         ...styled(a),
         points: a.points.map(point),
         textHeight: a.textHeight * k,
+        ...(a.maskReferences
+          ? { maskReferences: scaleDimensionReferences(a, k) }
+          : {}),
       })),
       polylines: o.polylines.map((l) => ({
         ...styled(l),
@@ -221,6 +226,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/12',
       'openstruct.detail/13',
       'openstruct.detail/14',
+      'openstruct.detail/15',
     ].includes(pack.schema) &&
     (pack.fabricationPositions ||
       [...pack.objects.bars, ...pack.dependencies].some((b) => b.manufacturing))
@@ -241,6 +247,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/12',
       'openstruct.detail/13',
       'openstruct.detail/14',
+      'openstruct.detail/15',
     ].includes(pack.schema) &&
     [...pack.objects.bars, ...pack.dependencies].some(hasArmatureData)
   )
@@ -259,6 +266,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/12',
       'openstruct.detail/13',
       'openstruct.detail/14',
+      'openstruct.detail/15',
     ].includes(pack.schema) &&
     pack.objects.details.some(
       (d) =>
@@ -279,6 +287,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/12',
       'openstruct.detail/13',
       'openstruct.detail/14',
+      'openstruct.detail/15',
     ].includes(pack.schema) &&
     pack.objects.details.some((d) => d.label || d.showDimensions !== undefined)
   )
@@ -293,6 +302,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/12',
       'openstruct.detail/13',
       'openstruct.detail/14',
+      'openstruct.detail/15',
     ].includes(pack.schema) &&
     [...pack.objects.annotations, ...pack.objects.polylines].some(
       (o) => o.barIds !== undefined,
@@ -307,6 +317,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/12',
       'openstruct.detail/13',
       'openstruct.detail/14',
+      'openstruct.detail/15',
     ].includes(pack.schema) &&
     (pack.layers?.some((l) => l.plot) ||
       [
@@ -323,6 +334,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/12',
       'openstruct.detail/13',
       'openstruct.detail/14',
+      'openstruct.detail/15',
     ].includes(pack.schema) &&
     ([...pack.objects.bars, ...pack.dependencies].some(
       (b) => b.stirrupMirrored !== undefined,
@@ -337,6 +349,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/12',
       'openstruct.detail/13',
       'openstruct.detail/14',
+      'openstruct.detail/15',
     ].includes(pack.schema) &&
     pack.objects.masks.some((m) => m.format === 'NATIVE')
   )
@@ -346,6 +359,7 @@ export function detailPackageProject(value: DetailPackage): Project {
       'openstruct.detail/12',
       'openstruct.detail/13',
       'openstruct.detail/14',
+      'openstruct.detail/15',
     ].includes(pack.schema) &&
     pack.objects.masks.some(
       (m) => m.format !== 'NATIVE' && m.primitives.some((q) => q.native),
@@ -353,7 +367,11 @@ export function detailPackageProject(value: DetailPackage): Project {
   )
     throw new Error('Desenho local em referência importada exige pacote v12.');
   if (
-    !['openstruct.detail/13', 'openstruct.detail/14'].includes(pack.schema) &&
+    ![
+      'openstruct.detail/13',
+      'openstruct.detail/14',
+      'openstruct.detail/15',
+    ].includes(pack.schema) &&
     [
       ...pack.objects.bars,
       ...pack.objects.details,
@@ -366,12 +384,21 @@ export function detailPackageProject(value: DetailPackage): Project {
   )
     throw new Error('Aparência de textos exige pacote v13.');
   if (
-    pack.schema !== 'openstruct.detail/14' &&
+    !['openstruct.detail/14', 'openstruct.detail/15'].includes(pack.schema) &&
     pack.objects.masks.some((m) =>
       m.primitives.some((q) => q.native?.kind === 'arc' || q.sourceEntityId),
     )
   )
     throw new Error('Arcos e edição local CAD exigem pacote v14.');
+  if (
+    pack.schema !== 'openstruct.detail/15' &&
+    pack.objects.annotations.some(
+      (a) => a.maskReferences || a.dimensionPresentation,
+    )
+  )
+    throw new Error(
+      'Referências de máscara e unidades de cota exigem pacote v15.',
+    );
   const o = pack.objects,
     c = pack.context;
   const objects = [...contentObjects(o), ...pack.dependencies];
@@ -462,7 +489,7 @@ export function detailPackageProject(value: DetailPackage): Project {
   }
   return decodeProject(
     JSON.stringify({
-      schema: 'armadurastruct/23',
+      schema: 'armadurastruct/24',
       layers: pack.layers ?? defaultLayers(),
       fabricationPositions: pack.fabricationPositions ?? [],
       id: c.project.id,
@@ -509,6 +536,7 @@ export function readDetailPackage(raw: unknown): {
       'openstruct.detail/11',
       'openstruct.detail/12',
       'openstruct.detail/13',
+      'openstruct.detail/14',
       DETAIL_PACKAGE_SCHEMA,
     ].includes(input?.schema)
   )
@@ -525,6 +553,7 @@ export function readDetailPackage(raw: unknown): {
       'openstruct.detail/12',
       'openstruct.detail/13',
       'openstruct.detail/14',
+      'openstruct.detail/15',
     ].includes(pack.schema) &&
     !pack.layers
   )

@@ -221,7 +221,9 @@ export default function Ribbon({
             ...item('mask-extend', 'Estender — Extend de máscara', Move),
             caption: 'Estender',
           },
-          item('measure', 'Medir', Ruler),
+          item('measure', 'Medir distância', Ruler),
+          item('dimension-orthogonal', 'Cota ortogonal', Ruler),
+          item('dimension-aligned', 'Cota alinhada', Ruler),
         ],
       },
       {

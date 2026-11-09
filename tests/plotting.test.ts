@@ -329,7 +329,7 @@ describe('AS-21 · aparência de tela e plotagem', () => {
         unit,
       });
       const q = readDetailPackage(pack).project;
-      expect(pack.schema).toBe('openstruct.detail/14');
+      expect(pack.schema).toBe('openstruct.detail/15');
       expect(q.bars[0].points).toEqual(p.bars[0].points);
       expect(q.bars[0].plot).toEqual(p.bars[0].plot);
       expect(q.layers.find((l) => l.id === steel)?.plot).toEqual(
@@ -348,7 +348,7 @@ describe('AS-21 · aparência de tela e plotagem', () => {
       const q = decodeProject(
         JSON.stringify({ ...p, schema: `armadurastruct/${v}` }),
       );
-      expect(q.schema).toBe('armadurastruct/23');
+      expect(q.schema).toBe('armadurastruct/24');
       expect(q.bars[0].id).toBe('a');
       expect(q.bars[0].points).toEqual(p.bars[0].points);
       expect(q.bars[0].plot).toBeUndefined();

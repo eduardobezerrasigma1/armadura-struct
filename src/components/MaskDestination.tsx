@@ -74,6 +74,7 @@ export default function MaskDestination({
   onCalibrate,
   onCadEdit,
   onManipulate,
+  onMeasure,
   onOffset,
 }: {
   project: Project;
@@ -83,6 +84,9 @@ export default function MaskDestination({
   onCreate: () => void;
   onCalibrate: () => void;
   onCadEdit: (mode: 'trim' | 'extend') => void;
+  onMeasure: (
+    mode: 'measure' | 'dimension-aligned' | 'dimension-orthogonal',
+  ) => void;
   onManipulate: (mode: 'copy' | 'erase' | 'mirror') => void;
   onOffset: () => void;
   onBatch: (mode: 'import' | 'associate') => void;
@@ -139,7 +143,18 @@ export default function MaskDestination({
         aria-label="Ferramentas CAD da máscara ativa"
         value=""
         onChange={(e) => {
-          if (e.target.value === 'offset') onOffset();
+          if (
+            ['measure', 'dimension-aligned', 'dimension-orthogonal'].includes(
+              e.target.value,
+            )
+          )
+            onMeasure(
+              e.target.value as
+                | 'measure'
+                | 'dimension-aligned'
+                | 'dimension-orthogonal',
+            );
+          else if (e.target.value === 'offset') onOffset();
           else if (
             e.target.value === 'copy' ||
             e.target.value === 'erase' ||
@@ -151,6 +166,9 @@ export default function MaskDestination({
         }}
       >
         <option value="">Ferramentas CAD…</option>
+        <option value="measure">Medir distância — consulta</option>
+        <option value="dimension-orthogonal">Inserir cota ortogonal</option>
+        <option value="dimension-aligned">Inserir cota alinhada</option>
         <option value="offset">Offset — Paralelas</option>
         <option value="trim">Ajustar — Aparar / Trim</option>
         <option value="extend">Estender — Extend</option>

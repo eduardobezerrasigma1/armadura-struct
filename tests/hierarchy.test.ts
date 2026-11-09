@@ -46,7 +46,7 @@ describe('versioned hierarchy and physical quantities', () => {
       const legacy = { ...source, schema, id: undefined, hierarchy: undefined };
       const raw = JSON.stringify(legacy),
         migrated = decodeProject(raw);
-      expect(migrated.schema).toBe('armadurastruct/23');
+      expect(migrated.schema).toBe('armadurastruct/24');
       for (const field of [
         'bars',
         'details',

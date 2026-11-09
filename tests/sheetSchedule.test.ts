@@ -256,7 +256,7 @@ describe('quadro vetorial de aço por prancha', () => {
       const q = decodeProject(
         JSON.stringify({ ...old, schema: `armadurastruct/${version}` }),
       );
-      expect(q.schema).toBe('armadurastruct/23');
+      expect(q.schema).toBe('armadurastruct/24');
       expect(q.sheets.every((s) => !s.steelSchedule)).toBe(true);
       expect(schedule(q).reduce((s, r) => s + r.quantity, 0)).toBe(7);
     }

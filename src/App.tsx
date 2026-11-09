@@ -1,3 +1,13 @@
+import MeasureDimensionPanel, {
+  type MeasureSession,
+} from './components/MeasureDimensionPanel';
+import {
+  dimensionTool,
+  measuredDistance,
+  captureMaskReference,
+  dimensionReferenceIssue,
+  type DimensionPresentation,
+} from './domain/maskDimensions';
 import MatchPropertiesPanel, {
   type MatchSession,
 } from './components/MatchPropertiesPanel';
@@ -403,6 +413,14 @@ export default function App() {
   const [vertexRequest, setVertexRequest] = useState<VertexSession | null>(
     null,
   );
+  const [measureSession, setMeasureSession] = useState<MeasureSession | null>(
+    null,
+  );
+  const measurePresentation = useRef<DimensionPresentation>({
+    unit: 'mm',
+    precision: 2,
+  });
+  const measureConsumed = useRef(false);
   const [maskManip, setMaskManip] = useState<MaskManipSession | null>(null);
   const [match, setMatch] = useState<
     | (MatchSession & {
@@ -672,11 +690,14 @@ export default function App() {
   const canvas = () => (activeSheet ? paperCanvas.current : cad.current);
   const captureDocument = (): DocumentSession => ({
     selected,
-    maskId: maskOffset || match || maskManip ? null : maskId,
-    tool: nativeKind || tool === 'follow' ? 'select' : tool,
-    draft: nativeKind ? [] : draft,
+    maskId: maskOffset || match || maskManip || measureSession ? null : maskId,
+    tool: nativeKind || tool === 'follow' || measureSession ? 'select' : tool,
+    draft: nativeKind || measureSession ? [] : draft,
     page,
-    command: nativeKind || maskOffset || match || maskManip ? '' : command,
+    command:
+      nativeKind || maskOffset || match || maskManip || measureSession
+        ? ''
+        : command,
     detailId: activeDetailId,
     isolation: activeDrawing ? undefined : isolatedDetailId,
     camera: canvas()?.getState() ?? sessions.current.get(documentKey)?.camera,
@@ -1057,6 +1078,7 @@ export default function App() {
     if (ids.length) setSidebarTab('properties');
   };
   const setTool = (t: Tool) => {
+    setMeasureSession(null);
     setMatch(null);
     if (maskOffset) {
       setMaskId(null);
@@ -1083,6 +1105,25 @@ export default function App() {
         'Abra o desenho com duplo clique na vista para editar os objetos.',
       );
       return;
+    }
+    if (dimensionTool(t)) {
+      const current = historyRef.current.present;
+      measureConsumed.current = false;
+      setMeasureSession({
+        project: current,
+        context: { ...maskDrawingContext },
+        maskId: drawingMaskId,
+        barId: tab === 'Máscaras' || t === 'measure' ? undefined : chosen?.id,
+        references: [],
+        presentation: { ...measurePresentation.current },
+      });
+      setMaskId(null);
+      setNativeEntity(undefined);
+      if (tab === 'Máscaras' || t === 'measure') {
+        setSelectedRaw([]);
+        setMaskId(null);
+        setNativeEntity(undefined);
+      }
     }
     setFollowRequest(
       t === 'follow'
@@ -1111,6 +1152,43 @@ export default function App() {
     setPage('drawing');
     setMessage(prompts[t]);
   };
+  const endMeasure = () => {
+    setMeasureSession(null);
+    setToolRaw('select');
+    setDraft([]);
+  };
+  useEffect(() => {
+    const s = measureSession;
+    if (
+      s &&
+      (s.project !== p ||
+        s.context.key !== documentKey ||
+        s.context.detailId !== activeDetailId ||
+        s.context.scopeDetailId !== isolatedDetailId ||
+        s.maskId !== drawingMaskId ||
+        !dimensionTool(tool))
+    ) {
+      endMeasure();
+      notify('Medir/cotar cancelado: projeto, máscara ou contexto mudou.');
+    }
+  }, [
+    p,
+    documentKey,
+    activeDetailId,
+    isolatedDetailId,
+    drawingMaskId,
+    tool,
+    measureSession,
+  ]);
+  const staleDimensions = useMemo(
+    () =>
+      p.annotations.filter(
+        (a) =>
+          p.hierarchy.objectDetails[a.id] === activeDetailId &&
+          dimensionReferenceIssue(p, a),
+      ),
+    [p, activeDetailId],
+  );
   const beginDetailEdit = (detailId: string) => {
     const current = historyRef.current.present;
     if (
@@ -3085,6 +3163,14 @@ export default function App() {
     }
   }, [nativeKind, nativeTarget]);
   const finish = () => {
+    if (measureSession) {
+      if (tool === 'measure' && !draft.length) endMeasure();
+      else
+        notify(
+          'Indique o próximo ponto; a posição da cota é confirmada pelo terceiro ponto. Esc cancela.',
+        );
+      return;
+    }
     if (match) {
       if (match.stage === 'targets') applyMatch();
       else if (match.stage === 'properties')
@@ -3402,14 +3488,55 @@ export default function App() {
       });
       return;
     }
+    if (measureSession && dimensionTool(tool)) {
+      const s = measureSession;
+      if (measureConsumed.current) return;
+      if (
+        s.project !== historyRef.current.present ||
+        s.context.key !== documentKey ||
+        s.context.detailId !== activeDetailId ||
+        s.context.scopeDetailId !== isolationRef.current ||
+        s.maskId !== drawingMaskId
+      ) {
+        endMeasure();
+        notify('Contexto mudou. Reinicie Medir/cotar.');
+        return;
+      }
+      try {
+        measuredDistance(point, point);
+      } catch (e) {
+        setMeasureSession({ ...s, issue: (e as Error).message });
+        return;
+      }
+      if (
+        tool !== 'measure' &&
+        draft.length < 2 &&
+        (!draft.length || distance(draft[0], point) > 0.01)
+      ) {
+        const ref = captureMaskReference(
+          p,
+          maskDrawingContext,
+          s.maskId,
+          point,
+          draft.length as 0 | 1,
+        );
+        setMeasureSession({
+          ...s,
+          references: [
+            ...s.references.filter((r) => r.pointIndex !== draft.length),
+            ...(ref ? [ref] : []),
+          ],
+          issue: undefined,
+        });
+      }
+    }
     if (tool === 'measure') {
       if (!draft.length) {
         setDraft([point]);
         return;
       }
-      notify(
-        `Distância: ${format(distance(draft[0], point), 2)} mm · ${format(distance(draft[0], point) / 1000, 3)} m`,
-      );
+      const result = measuredDistance(draft[0], point);
+      setMeasureSession((s) => (s ? { ...s, result, cursor: undefined } : s));
       setDraft([]);
       return;
     }
@@ -3432,7 +3559,15 @@ export default function App() {
         id: uid(),
         kind: tool as Annotation['kind'],
         points,
-        barId: chosen?.id,
+        barId: measureSession ? measureSession.barId : chosen?.id,
+        ...(tool.startsWith('dimension') && measureSession
+          ? {
+              dimensionPresentation: measureSession.presentation,
+              maskReferences: measureSession.references.length
+                ? measureSession.references
+                : undefined,
+            }
+          : {}),
         label: '',
         textHeight: 50,
         color: '#7c91b7',
@@ -3442,10 +3577,18 @@ export default function App() {
         notify(error);
         return;
       }
-      commit((p) => ({ ...p, annotations: [...p.annotations, a] }));
+      if (measureSession) measureConsumed.current = true;
+      if (!commit((p) => ({ ...p, annotations: [...p.annotations, a] }))) {
+        measureConsumed.current = false;
+        return;
+      }
       select([a.id]);
       setTool('select');
-      notify('Anotação criada. Edite texto e vínculo nas propriedades.');
+      notify(
+        a.kind.startsWith('dimension')
+          ? 'Cota estática criada. Edite apresentação e referências nas propriedades.'
+          : 'Anotação criada. Edite texto e vínculo nas propriedades.',
+      );
       return;
     }
     if (tool === 'move' || tool === 'copy') {
@@ -3763,6 +3906,27 @@ export default function App() {
     return true;
   };
   const action = async (a: Action) => {
+    if (measureSession && ['undo', 'redo'].includes(a)) {
+      endMeasure();
+      return;
+    }
+    if (
+      measureSession &&
+      ![
+        'measure',
+        'dimension-aligned',
+        'dimension-orthogonal',
+        'fit',
+        'grid',
+        'snap',
+        'ortho',
+        'dimensions',
+        'sidebar',
+        'focus',
+        'save',
+      ].includes(a)
+    )
+      endMeasure();
     if (a === 'match-properties') {
       startMatch();
       return;
@@ -4694,6 +4858,8 @@ export default function App() {
       REPETIR: 'repeat',
       FAIXA: 'range',
       COTA: 'dimension-orthogonal',
+      DIM: 'dimension-orthogonal',
+      DIMENSION: 'dimension-orthogonal',
       ALINHADA: 'dimension-aligned',
       CHAMADA: 'leader',
       CORTE: 'section',
@@ -4835,6 +5001,11 @@ export default function App() {
         'input,textarea,select',
       );
       if (e.key === 'Escape') {
+        if (measureSession) {
+          endMeasure();
+          cmdInput.current?.blur();
+          return;
+        }
         if (match) {
           endMatch();
           cmdInput.current?.blur();
@@ -5106,6 +5277,7 @@ export default function App() {
         maskDestination={
           <MaskDestination
             onOffset={() => startMaskOffset()}
+            onMeasure={setTool}
             onManipulate={(mode) => startMaskManip(mode)}
             onCadEdit={(mode) => startMaskCad(mode)}
             onCalibrate={() => startMaskCalibration()}
@@ -5605,6 +5777,7 @@ export default function App() {
                   setTool('select');
                   setMaskControl(true);
                 }}
+                dimensionPresentation={measureSession?.presentation}
                 previewLines={
                   offsetLines ??
                   manipLines ??
@@ -5650,6 +5823,7 @@ export default function App() {
                       transformRequest?.base)
                 }
                 commandActive={
+                  !!measureSession ||
                   !!match ||
                   !!maskOffset ||
                   !!maskManip ||
@@ -5709,6 +5883,8 @@ export default function App() {
                 setTool={setTool}
                 onCursor={(point) => {
                   onCursor(point);
+                  if (measureSession)
+                    setMeasureSession((s) => (s ? { ...s, cursor: point } : s));
                   if (maskManip?.stage === 'target')
                     setMaskManip((s) =>
                       s ? { ...s, cursor: point, issue: undefined } : s,
@@ -5731,6 +5907,28 @@ export default function App() {
                 }}
                 showDimensions={dimensions}
               />
+              {measureSession && (
+                <MeasureDimensionPanel
+                  session={measureSession}
+                  tool={tool}
+                  points={draft}
+                  onMode={setTool}
+                  onPresentation={(v) => {
+                    measurePresentation.current = v;
+                    setMeasureSession((s) =>
+                      s ? { ...s, presentation: v } : s,
+                    );
+                  }}
+                  onEnd={endMeasure}
+                />
+              )}
+              {!!staleDimensions.length && (
+                <div className="mask-dimension-warning" role="alert">
+                  {staleDimensions.length} cota(s) estática(s) com referência de
+                  máscara alterada/ausente. Revise as referências;
+                  canvas/PDF/DXF identificam essas cotas.
+                </div>
+              )}
               {match && (
                 <MatchPropertiesPanel
                   session={match}

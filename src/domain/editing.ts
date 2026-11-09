@@ -1,3 +1,4 @@
+import { remapDimensionMasks } from './maskDimensions';
 import { previewRenumber, type RenumberOptions } from './numbering';
 export { quantityForSpacing } from './detailQuantities';
 import {
@@ -477,7 +478,7 @@ export function cloneArmatureGraph(p: Project, options: ArmatureCloneOptions) {
   const annotations = p.annotations
     .filter((o) => chosen.has(o.id))
     .map((o) => ({
-      ...remapReferences(structuredClone(o)),
+      ...remapDimensionMasks(remapReferences(structuredClone(o)), idMap),
       id: idMap[o.id],
       points: o.points.map((v) => add(v, options.delta)),
     }));

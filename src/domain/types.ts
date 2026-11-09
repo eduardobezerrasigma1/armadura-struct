@@ -237,6 +237,9 @@ export type Annotation = LayerBinding & {
   id: string;
   kind: AnnotationKind;
   frameRotation?: number;
+  /** Static coordinates with explicit diagnostics, never a parametric mask constraint. */
+  maskReferences?: import('./maskDimensions').MaskDimensionReference[];
+  dimensionPresentation?: import('./maskDimensions').DimensionPresentation;
   points: Point[];
   barId?: string;
   /** Additional dependency links; do not drive quantities or change the primary caption. */
@@ -254,7 +257,7 @@ export type DraftPolyline = LayerBinding & {
   color: string;
 };
 export type Project = {
-  schema: 'armadurastruct/23';
+  schema: 'armadurastruct/24';
   cadDefaults?: import('./cadDefaults').CadDefaults;
   plotting?: PlotSettings;
   layerEnvironment?: import('./layerProfiles').LayerEnvironment;

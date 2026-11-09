@@ -1,6 +1,6 @@
 import { visibilitySchema } from './visibilitySchema';
 import { z } from 'zod';
-import { layerObjects, objectRole, layerId } from './layers';
+import { layerObjects, objectRole, layerId, stylePrimitive } from './layers';
 import { uid, type Project, type LayerBinding } from './types';
 export type LayerState = {
   visible: boolean;
@@ -191,7 +191,10 @@ export function layerProjection(
     masks: p.masks.filter(keep).map((m) => ({
       ...m,
       primitives: m.primitives.filter(
-        (q) => !q.layerId || layerState(p, key, q.layerId)[mode],
+        (q) =>
+          layerState(p, key, q.layerId ?? stylePrimitive(p, m, q).layerId!)[
+            mode
+          ],
       ),
     })),
   };

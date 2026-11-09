@@ -218,7 +218,7 @@ describe('padrões CAD documentais e snapshots de criação', () => {
         producer: { app: 'test', version: '1' },
         unit,
       });
-      expect(pack.schema).toBe('openstruct.detail/14');
+      expect(pack.schema).toBe('openstruct.detail/15');
       const restored = readDetailPackage(pack).project;
       expect(restored.cadDefaults).toBeUndefined();
       expect(restored.bars[0].drafting?.height).toBeCloseTo(65, 7);

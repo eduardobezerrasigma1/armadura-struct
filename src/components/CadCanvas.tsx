@@ -1,3 +1,4 @@
+import { annotationCadDefaults } from '../domain/cadDefaults';
 import {
   hitMaskCadEntity,
   type MaskCadEntity,
@@ -122,6 +123,7 @@ type Props = {
   onNativePick?: (maskId: string, entityId: string) => void;
   extraSnapPoints?: Point[];
   previewLines?: Primitive[];
+  dimensionPresentation?: import('../domain/maskDimensions').DimensionPresentation;
   previewBase?: Point;
   mirrorAxis?: { base: Point; end: Point };
   onContextRequest: (ids: string[], point: Point, screen: Point) => void;
@@ -1543,14 +1545,17 @@ export default forwardRef<CadHandle, Props>(function CadCanvas(props, ref) {
               <g opacity=".65">
                 {renderPrimitives(
                   annotationPrimitives(
-                    {
+                    annotationCadDefaults(project, {
                       id: 'preview',
                       kind: tool as import('../domain/types').AnnotationKind,
+                      ...(props.dimensionPresentation
+                        ? { dimensionPresentation: props.dimensionPresentation }
+                        : {}),
                       points: [...draft, cursor],
                       label: '',
                       textHeight: 50,
                       color: '#50cddd',
-                    },
+                    }),
                     project,
                   ),
                   '#50cddd',

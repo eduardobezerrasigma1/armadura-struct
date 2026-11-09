@@ -3955,3 +3955,16 @@ button.hierarchy-drawing {
 .match-check input {
   width: auto;
 }
+
+.mask-dimension-warning {
+  position: absolute;
+  left: 14px;
+  bottom: 50px;
+  z-index: 7;
+  max-width: 360px;
+  padding: 8px;
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  background: var(--panel);
+  font-size: 11px;
+}

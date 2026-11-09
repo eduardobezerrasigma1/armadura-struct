@@ -331,7 +331,7 @@ describe('physical model to paper composition', () => {
       v.scale = 2;
     }
     const migrated = decodeProject(JSON.stringify(old));
-    expect(migrated.schema).toBe('armadurastruct/23');
+    expect(migrated.schema).toBe('armadurastruct/24');
     expect(migrated.hierarchy.placements[0]).toMatchObject({
       id: old.hierarchy.placements[0].id,
       origin: old.hierarchy.placements[0].origin,

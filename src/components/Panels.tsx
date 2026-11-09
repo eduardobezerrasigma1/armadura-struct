@@ -1,3 +1,4 @@
+import { dimensionReferenceIssue } from '../domain/maskDimensions';
 import LayerInspector from './LayerInspector';
 import { resolveStyle } from '../domain/layers';
 import {
@@ -1473,10 +1474,75 @@ export function DraftInspector({
             }
           />
         </Section>
+        {annotation?.kind.startsWith('dimension') && (
+          <p className="field-help">
+            Cota estática: não acompanha referências de máscara.{' '}
+            {annotation.maskReferences?.length
+              ? 'Referências registradas apenas para verificação.'
+              : 'Sem verificação de máscara.'}
+          </p>
+        )}
+        {annotation && dimensionReferenceIssue(project, annotation) && (
+          <p className="geometry-warning" role="alert">
+            {dimensionReferenceIssue(project, annotation)}
+          </p>
+        )}
+        {annotation?.maskReferences && (
+          <button onClick={() => onAnnotation({ maskReferences: undefined })}>
+            Remover verificação de máscara (manter cota estática)
+          </button>
+        )}
         {annotation && annotationError(annotation) && (
           <p className="geometry-warning" role="alert">
             {annotationError(annotation)}
           </p>
+        )}
+        {annotation?.kind.startsWith('dimension') && (
+          <Section title="Apresentação da cota">
+            <label className="field">
+              Unidade
+              <select
+                aria-label="Unidade da cota"
+                value={annotation.dimensionPresentation?.unit ?? 'cm'}
+                onChange={(e) =>
+                  onAnnotation({
+                    dimensionPresentation: {
+                      unit: e.target.value as 'mm' | 'cm' | 'm',
+                      precision:
+                        annotation.dimensionPresentation?.precision ?? 1,
+                    },
+                  })
+                }
+              >
+                {['mm', 'cm', 'm'].map((v) => (
+                  <option key={v}>{v}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              Casas decimais
+              <select
+                aria-label="Precisão da cota"
+                value={annotation.dimensionPresentation?.precision ?? 1}
+                onChange={(e) =>
+                  onAnnotation({
+                    dimensionPresentation: {
+                      unit: annotation.dimensionPresentation?.unit ?? 'cm',
+                      precision: Number(e.target.value),
+                    },
+                  })
+                }
+              >
+                {[0, 1, 2, 3, 4, 5, 6].map((v) => (
+                  <option key={v}>{v}</option>
+                ))}
+              </select>
+            </label>
+            <p className="field-help">
+              Arredondamento somente do texto. Texto manual substitui o valor
+              calculado; deixe vazio para valor automático.
+            </p>
+          </Section>
         )}
         {annotation && (
           <Section title="Texto e vínculo">

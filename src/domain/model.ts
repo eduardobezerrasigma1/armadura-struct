@@ -1,3 +1,7 @@
+import {
+  dimensionPresentationSchema,
+  maskDimensionReferencesSchema,
+} from './maskDimensions';
 import { cadDefaultsSchema, validateCadDefaults } from './cadDefaults';
 import { validateNativeMask } from './nativeMasks';
 import { sheetSteelScheduleSchema } from './sheetSchedule';
@@ -325,6 +329,8 @@ const schema = z.object({
         ]),
         points: z.array(point).length(3),
         frameRotation: number.optional(),
+        maskReferences: maskDimensionReferencesSchema.optional(),
+        dimensionPresentation: dimensionPresentationSchema.optional(),
         barId: z.string().optional(),
         barIds: z
           .array(identity)
@@ -460,7 +466,18 @@ export function decodeProject(
   options: { allowOrphanReferences?: boolean } = {},
 ): Project {
   const input = JSON.parse(raw);
-  const arcVersion = input?.schema === 'armadurastruct/23';
+  const dimensionVersion = input?.schema === 'armadurastruct/24';
+  if (
+    !dimensionVersion &&
+    input?.annotations?.some(
+      (a: { maskReferences?: unknown; dimensionPresentation?: unknown }) =>
+        a.maskReferences || a.dimensionPresentation,
+    )
+  )
+    throw new Error(
+      'Referências estáticas de máscaras e unidades de cota exigem formato 24.',
+    );
+  const arcVersion = dimensionVersion || input?.schema === 'armadurastruct/23';
   if (
     !arcVersion &&
     input?.masks?.some(
@@ -720,7 +737,7 @@ export function decodeProject(
   let p: Project = {
     ...parsed,
     id,
-    schema: 'armadurastruct/23',
+    schema: 'armadurastruct/24',
     layers: parsed.layers ?? defaultLayers(),
     sheets: v4
       ? parsed.sheets!.map((s) => ({
@@ -947,7 +964,7 @@ export const emptyProject = (): Project => {
     polylines: [],
   };
   return {
-    schema: 'armadurastruct/23',
+    schema: 'armadurastruct/24',
     layers: defaultLayers(),
     sheets: [initialSheet(`${id}:sheet`)],
     id,

@@ -70,7 +70,7 @@ describe('Novo projeto · rascunho nativo e preparação atômica', () => {
     expect(h.placements).toEqual([]);
     expect(schedule(r.project)).toEqual([]);
     expect(r.project.sheets).toHaveLength(1);
-    expect(r.project.schema).toBe('armadurastruct/23');
+    expect(r.project.schema).toBe('armadurastruct/24');
   });
   it('prévia personalizada corresponde ao resultado e preserva IDs sem acrescentar padrões', () => {
     const d = fixture(),

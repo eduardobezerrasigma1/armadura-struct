@@ -165,7 +165,7 @@ it('PDF/DXF and package units retain transformed coordinates and physical dimens
       producer: { app: 'test', version: '1' },
       unit,
     });
-    expect(pack.schema).toBe('openstruct.detail/14');
+    expect(pack.schema).toBe('openstruct.detail/15');
     const q = readDetailPackage(pack).project;
     expect(q.details).toEqual(p.details);
     expect(schedule(q)[0].quantity).toBe(8);

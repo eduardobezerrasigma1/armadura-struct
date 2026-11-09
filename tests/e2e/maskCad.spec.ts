@@ -194,7 +194,7 @@ test('círculo aparado vira arco analítico, que pode ser estendido mantendo o r
   const trimmed = q.masks[0].primitives[0].native!;
   if (trimmed.kind !== 'arc') throw Error('arc');
   expect(trimmed.sweepAngle).toBeCloseTo(180, 8);
-  expect(q.schema).toBe('armadurastruct/23');
+  expect(q.schema).toBe('armadurastruct/24');
   await start(page, 'extend');
   await click(page, 700, 0);
   await page.keyboard.press('Enter');
