@@ -89,6 +89,48 @@ describe('Copiar propriedades gráficas', () => {
       ).toEqual(q.masks[0].primitives[1].style);
     },
   );
+  it('cópia seletiva conserva atributos não escolhidos e copia o vínculo de layer', () => {
+    const { p, ctx, active } = setup();
+    const source = p.masks[0].primitives[0],
+      target = p.masks[0].primitives[1];
+    source.layerId = p.layers[0].id;
+    source.style = { color: '#123456', lineWidth: 0.5 };
+    target.style = { color: '#ffffff', lineWidth: 0.7, lineScale: 3 };
+    const all = graphicEntities(p, ctx, active);
+    const q = previewMatchProperties(
+      p,
+      all.find((e) => e.object === source)!,
+      [all.find((e) => e.object === target)!],
+      { mode: 'binding', properties: ['layer', 'color'] },
+      ctx,
+      active,
+    ).project;
+    expect(q.masks[0].primitives[1].layerId).toBe(source.layerId);
+    expect(q.masks[0].primitives[1].style).toEqual({
+      color: '#123456',
+      lineWidth: 0.7,
+      lineScale: 3,
+    });
+    expect(q.masks[0].primitives[1].points).toBe(target.points);
+  });
+  it('referência importada sem layer catalogado usa o mesmo fallback da renderização', () => {
+    const { p, ctx, active } = setup();
+    p.masks[0].format = 'DXF';
+    p.masks[0].primitives[0].layer = 'ORIGEM_DESCONHECIDA';
+    const all = graphicEntities(p, ctx, active);
+    const q = previewMatchProperties(
+      p,
+      all.find((e) => e.object.id === 'line')!,
+      [all.find((e) => e.object.id === 'circle')!],
+      { mode: 'resolved', properties: ['color'] },
+      ctx,
+      active,
+    ).project;
+    expect(q.masks[0].primitives[1].style?.color).toBe(p.layers[0].color);
+    expect(q.masks[0].primitives[1].native).toBe(
+      p.masks[0].primitives[1].native,
+    );
+  });
   it('altura de texto usa mm físicos; alinhamento é compatível somente entre textos de máscara', () => {
     const { p, ctx, active } = setup();
     p.masks[0].scale = 2;

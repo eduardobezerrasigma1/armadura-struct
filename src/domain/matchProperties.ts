@@ -3,7 +3,6 @@ import {
   layerObjects,
   objectRole,
   resolveStyle,
-  layerId,
   stylePrimitive,
 } from './layers';
 import { objectState, layerState } from './layerProfiles';
@@ -74,12 +73,7 @@ export function graphicEntities(
       editable: objectState(p, ctx.key, o).editable,
     }));
   const primitiveLayer = (e: ReturnType<typeof maskCadEntities>[number]) =>
-    e.mask.layerId ??
-    e.ref.primitive.layerId ??
-    p.layers.find(
-      (l) => l.name === (e.ref.primitive.role ?? e.ref.primitive.layer),
-    )?.id ??
-    p.layers[0].id;
+    stylePrimitive(p, e.mask, e.ref.primitive).layerId!;
   const masks = maskCadEntities(p, ctx)
     .filter(
       (e) =>
@@ -143,12 +137,9 @@ export function previewMatchProperties(
   let count = 0;
   const effectiveLayer = (r: GraphicRef) => {
     const m = p.masks.find((m) => m.id === r.maskId);
-    return (
-      m?.layerId ??
-      r.object.layerId ??
-      p.layers.find((l) => l.name === r.role)?.id ??
-      layerId(r.role)
-    );
+    if (m) return stylePrimitive(p, m, r.object as Primitive).layerId!;
+    const id = r.object.layerId ?? `layer:${r.role}`;
+    return p.layers.find((l) => l.id === id)?.id ?? p.layers[0].id;
   };
   const sourceLayer = effectiveLayer(src);
   if (!p.layers.some((l) => l.id === sourceLayer))
