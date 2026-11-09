@@ -47,6 +47,7 @@ export type Action =
   | 'cad-settings'
   | 'mask-control'
   | 'mask-calibrate'
+  | 'mask-offset'
   | 'mask-trim'
   | 'mask-extend'
   | 'mask-copy'
@@ -202,6 +203,10 @@ export default function Ribbon({
         name: 'Ferramentas',
         items: [
           item('mask-calibrate', 'Ajustar escala', Ruler),
+          {
+            ...item('mask-offset', 'Offset — Paralelas de máscara', Copy),
+            caption: 'Offset',
+          },
           {
             ...item(
               'mask-trim',

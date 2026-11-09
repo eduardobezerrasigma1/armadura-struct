@@ -34,6 +34,7 @@ export default function MaskControl({
   onCalibrate,
   onCadEdit,
   onManipulate,
+  onOffset,
   onClose,
 }: {
   project: Project;
@@ -50,6 +51,7 @@ export default function MaskControl({
   creating?: boolean;
   onDelete: (id: string) => boolean;
   onCalibrate: (id: string) => boolean;
+  onOffset: (id: string) => boolean;
   onCadEdit: (
     mode: 'trim' | 'extend',
     id: string,
@@ -199,6 +201,14 @@ export default function MaskControl({
             </p>
           )}
           <div className="batch-actions">
+            <button
+              disabled={!ready}
+              onClick={() => {
+                if (onOffset(m.id)) onClose();
+              }}
+            >
+              Usar esta máscara e Offset
+            </button>
             {(['copy', 'erase'] as const).map((mode) => (
               <button
                 key={mode}

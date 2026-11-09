@@ -1,3 +1,13 @@
+import MaskOffsetPanel, {
+  type MaskOffsetSession,
+} from './components/MaskOffsetPanel';
+import {
+  previewMaskOffset,
+  applyMaskOffset,
+  parseOffsetDistance,
+  measuredOffsetDistance,
+  type MaskOffsetPlan,
+} from './domain/maskOffset';
 import MaskManipPanel, {
   type MaskManipSession,
 } from './components/MaskManipPanel';
@@ -384,6 +394,14 @@ export default function App() {
     null,
   );
   const [maskManip, setMaskManip] = useState<MaskManipSession | null>(null);
+  const [maskOffset, setMaskOffset] = useState<MaskOffsetSession | null>(null);
+  const offsetSuggestion = useRef('100 mm');
+  const offsetConsumed = useRef(false);
+  const lastOffset = useRef<{
+    project: Project;
+    at: Point;
+    time: number;
+  } | null>(null);
   const manipConsumed = useRef(false);
   const lastManipCopy = useRef<{
     project: Project;
@@ -1019,6 +1037,11 @@ export default function App() {
     if (ids.length) setSidebarTab('properties');
   };
   const setTool = (t: Tool) => {
+    if (maskOffset) {
+      setMaskId(null);
+      setNativeEntity(undefined);
+    }
+    setMaskOffset(null);
     if (maskManip) {
       setMaskId(null);
       setNativeEntity(undefined);
@@ -1869,6 +1892,265 @@ export default function App() {
     setDraft([]);
     return true;
   };
+  const offsetEntities = useMemo(
+    () => (maskOffset ? maskCadEntities(p, maskDrawingContext) : []),
+    [p, documentKey, activeDetailId, isolatedDetailId, !!maskOffset],
+  );
+  const endMaskOffset = () => {
+    setMaskOffset(null);
+    setMaskId(null);
+    setNativeEntity(undefined);
+    setDraft([]);
+    setToolRaw('select');
+  };
+  const startMaskOffset = (id = drawingMaskId) => {
+    try {
+      const base = historyRef.current.present,
+        mask = maskEditTarget(base, id, maskDrawingContext);
+      const residual = selected.length;
+      setTool('select');
+      setMaskControl(false);
+      setTab('Máscaras');
+      setPage('drawing');
+      setSelectedRaw([]);
+      setNativeEntity(undefined);
+      setMaskId(mask.id);
+      setDrawingMaskChoice({ projectId: base.id, id: mask.id });
+      lastOffset.current = null;
+      offsetConsumed.current = false;
+      setMaskOffset({
+        project: base,
+        maskId: mask.id,
+        context: { ...maskDrawingContext },
+        stage: 'distance',
+        input: offsetSuggestion.current,
+        points: [],
+        hadOperations: false,
+      });
+      notify(
+        `Offset: confirme uma distância com unidade ou meça por dois pontos.${residual ? ' Seleção anterior de aço/objetos ignorada.' : ''}`,
+      );
+      return true;
+    } catch (error) {
+      notify((error as Error).message);
+      return false;
+    }
+  };
+  const confirmOffsetDistance = () => {
+    if (!maskOffset) return;
+    try {
+      const distanceMm = parseOffsetDistance(maskOffset.input);
+      offsetSuggestion.current = maskOffset.input;
+      setMaskOffset({
+        ...maskOffset,
+        distanceMm,
+        stage: 'entity',
+        target: undefined,
+        cursor: undefined,
+        points: [],
+        issue: undefined,
+      });
+    } catch (error) {
+      setMaskOffset({ ...maskOffset, issue: (error as Error).message });
+    }
+  };
+  const pickOffsetTarget = (ref?: MaskEntityRef) => {
+    const s = maskOffset;
+    if (!s) return;
+    if (!ref) {
+      setMaskOffset({
+        ...s,
+        stage: 'entity',
+        target: undefined,
+        cursor: undefined,
+        issue: undefined,
+      });
+      return;
+    }
+    try {
+      maskManipSelection(
+        historyRef.current.present,
+        s.maskId,
+        [ref],
+        maskDrawingContext,
+        offsetEntities,
+      );
+      const e = offsetEntities.find((e) => e.ref.primitive === ref.primitive);
+      if (!e?.curve)
+        throw new Error(
+          e?.ref.primitive.text
+            ? 'Texto/anotação não suporta Offset.'
+            : (e?.issue ?? 'Tipo sem suporte a Offset.'),
+        );
+      setMaskOffset({
+        ...s,
+        target: ref,
+        stage: 'side',
+        cursor: undefined,
+        issue: undefined,
+      });
+    } catch (error) {
+      setMaskOffset({ ...s, issue: (error as Error).message });
+    }
+  };
+  const offsetPreview = useMemo<{
+    plan?: MaskOffsetPlan;
+    error?: string;
+  }>(() => {
+    const s = maskOffset;
+    if (!s || s.stage !== 'side' || !s.target || !s.cursor) return {};
+    try {
+      return {
+        plan: previewMaskOffset(
+          s.project,
+          s.maskId,
+          s.target,
+          s.distanceMm!,
+          s.cursor,
+          s.context,
+          offsetEntities,
+          s.pickTolerance,
+        ),
+      };
+    } catch (error) {
+      return { error: (error as Error).message };
+    }
+  }, [maskOffset, offsetEntities]);
+  const offsetLines = useMemo(
+    () =>
+      offsetPreview.plan
+        ? maskPrimitives({
+            ...offsetPreview.plan.mask,
+            primitives: offsetPreview.plan.results,
+          })
+        : undefined,
+    [offsetPreview.plan],
+  );
+  const offsetOverlay = useMemo(
+    () =>
+      maskOffset?.target
+        ? {
+            mode: 'trim' as const,
+            limits: maskPrimitives({
+              ...maskOffset.project.masks.find(
+                (m) => m.id === maskOffset.maskId,
+              )!,
+              primitives: [maskOffset.target.primitive],
+            }),
+            change: [],
+          }
+        : undefined,
+    [maskOffset?.target, maskOffset?.project],
+  );
+  const offsetPoint = (point: Point, ref?: MaskEntityRef, tolerance = 1e-6) => {
+    const s = maskOffset;
+    if (!s || offsetConsumed.current) return;
+    const last = lastOffset.current;
+    if (
+      last?.project === historyRef.current.present &&
+      Date.now() - last.time < 400 &&
+      distance(last.at, point) <= Math.max(1e-6, tolerance)
+    )
+      return;
+    try {
+      if (
+        s.project !== historyRef.current.present ||
+        s.context.key !== documentKey ||
+        s.context.detailId !== activeDetailId ||
+        s.context.scopeDetailId !== isolationRef.current ||
+        s.maskId !== drawingMaskId ||
+        maskId !== s.maskId
+      )
+        throw new Error('Contexto mudou; reinicie Offset.');
+      if (s.stage === 'measure') {
+        const points = [...s.points, point];
+        if (points.length === 2) {
+          const distanceMm = measuredOffsetDistance(points[0], points[1]);
+          const input = `${distanceMm} mm`;
+          offsetSuggestion.current = input;
+          setMaskOffset({
+            ...s,
+            points: [],
+            input,
+            distanceMm,
+            stage: 'entity',
+            issue: undefined,
+          });
+        } else setMaskOffset({ ...s, points, issue: undefined });
+      } else if (s.stage === 'entity') {
+        if (!ref)
+          throw new Error(
+            'Clique numa entidade da máscara ativa. Aço e outras máscaras não são alvos.',
+          );
+        pickOffsetTarget(ref);
+      } else if (s.stage === 'side' && s.target) {
+        const plan = previewMaskOffset(
+          s.project,
+          s.maskId,
+          s.target,
+          s.distanceMm!,
+          point,
+          maskDrawingContext,
+          undefined,
+          tolerance,
+        );
+        const next = applyMaskOffset(s.project, plan, maskDrawingContext);
+        offsetConsumed.current = true;
+        if (!commit(() => next))
+          throw new Error('Offset bloqueado por contexto ou layers.');
+        const present = historyRef.current.present;
+        lastOffset.current = { project: present, at: point, time: Date.now() };
+        setMaskOffset({
+          ...s,
+          project: present,
+          stage: 'entity',
+          target: undefined,
+          cursor: undefined,
+          issue: undefined,
+          hadOperations: true,
+        });
+        setSelectedRaw([]);
+        setNativeEntity(undefined);
+        offsetConsumed.current = false;
+        notify(
+          `Offset ${format(s.distanceMm!, 6)} mm · ${plan.side} · ${plan.results.length} nova(s) entidade(s). Selecione outra entidade ou Enter para concluir. Desfazer disponível.`,
+        );
+      }
+    } catch (error) {
+      offsetConsumed.current = false;
+      setMaskOffset((v) => (v ? { ...v, issue: (error as Error).message } : v));
+      notify((error as Error).message);
+    }
+  };
+  useEffect(() => {
+    const s = maskOffset;
+    if (
+      s &&
+      (s.project !== p ||
+        s.context.key !== documentKey ||
+        s.context.detailId !== activeDetailId ||
+        s.context.scopeDetailId !== isolatedDetailId ||
+        s.maskId !== drawingMaskId ||
+        maskId !== s.maskId ||
+        tab !== 'Máscaras' ||
+        page !== 'drawing')
+    ) {
+      endMaskOffset();
+      notify(
+        'Offset cancelado: projeto, desenho, máscara ou contexto mudou. Cópias confirmadas permanecem no histórico.',
+      );
+    }
+  }, [
+    p,
+    documentKey,
+    activeDetailId,
+    isolatedDetailId,
+    drawingMaskId,
+    maskId,
+    tab,
+    page,
+    maskOffset,
+  ]);
   const manipEntities = useMemo(
     () => (maskManip ? maskCadEntities(p, maskDrawingContext) : []),
     [p, documentKey, isolatedDetailId, !!maskManip],
@@ -2630,6 +2912,11 @@ export default function App() {
     }
   }, [nativeKind, nativeTarget]);
   const finish = () => {
+    if (maskOffset) {
+      if (maskOffset.stage === 'distance') confirmOffsetDistance();
+      else endMaskOffset();
+      return;
+    }
     if (maskManip) {
       finishManip();
       return;
@@ -2684,6 +2971,20 @@ export default function App() {
     } else setDraft([]);
   };
   const onPoint = (point: Point) => {
+    if (maskOffset) {
+      offsetPoint(
+        point,
+        maskOffset.stage === 'entity'
+          ? hitMaskCadEntity(
+              offsetEntities,
+              point,
+              1e-5,
+              (e) => e.mask.id === maskOffset.maskId,
+            )?.ref
+          : undefined,
+      );
+      return;
+    }
     if (maskManip) {
       if (maskManip.stage === 'selection')
         toggleManipEntity(
@@ -3250,6 +3551,38 @@ export default function App() {
     return true;
   };
   const action = async (a: Action) => {
+    if (a === 'mask-offset') {
+      startMaskOffset();
+      return;
+    }
+    if (
+      maskOffset &&
+      ['delete', 'copy', 'move', 'rotate', 'mirror', 'clone-armature'].includes(
+        a,
+      )
+    ) {
+      endMaskOffset();
+      notify('Offset cancelado. Selecione alvos novamente para outro comando.');
+      return;
+    }
+    if (maskOffset && ['undo', 'redo'].includes(a)) {
+      const had = maskOffset.hadOperations;
+      endMaskOffset();
+      if (!had) return;
+    } else if (
+      maskOffset &&
+      ![
+        'fit',
+        'grid',
+        'snap',
+        'ortho',
+        'dimensions',
+        'sidebar',
+        'focus',
+        'save',
+      ].includes(a)
+    )
+      endMaskOffset();
     const manipActions: Partial<Record<Action, MaskManipMode>> = {
       'mask-copy': 'copy',
       'mask-erase': 'erase',
@@ -4100,6 +4433,8 @@ export default function App() {
       L: 'bar',
       MASCARAS: 'mask-control',
       CALIBRARMASCARA: 'mask-calibrate',
+      OFFSET: 'mask-offset',
+      PARALELA: 'mask-offset',
       APAGARMASCARA: 'mask-erase',
       ERASE: 'mask-erase',
       COPIARMASCARA: 'mask-copy',
@@ -4185,7 +4520,8 @@ export default function App() {
       const p = add(
         vertexRequest
           ? (vertexPreview.anchor ?? { x: 0, y: 0 })
-          : (maskManip?.base ??
+          : (maskOffset?.points.at(-1) ??
+              maskManip?.base ??
               maskCalibration?.points.at(-1) ??
               draft.at(-1) ?? { x: 0, y: 0 }),
         rotate({ x: Number(polar[1]), y: 0 }, Number(polar[2])),
@@ -4200,7 +4536,8 @@ export default function App() {
       const base = xy[1]
         ? ((vertexRequest
             ? vertexPreview.anchor
-            : (maskManip?.base ??
+            : (maskOffset?.points.at(-1) ??
+              maskManip?.base ??
               maskCalibration?.points.at(-1) ??
               draft.at(-1))) ?? {
             x: 0,
@@ -4256,6 +4593,11 @@ export default function App() {
         'input,textarea,select',
       );
       if (e.key === 'Escape') {
+        if (maskOffset) {
+          endMaskOffset();
+          cmdInput.current?.blur();
+          return;
+        }
         if (maskManip) {
           endMaskManip();
           cmdInput.current?.blur();
@@ -4498,6 +4840,7 @@ export default function App() {
           snap,
           ortho,
           dimensions,
+          'mask-offset': !!maskOffset,
           'mask-copy': maskManip?.mode === 'copy',
           'mask-erase': maskManip?.mode === 'erase',
           'mask-trim': maskCad?.mode === 'trim',
@@ -4514,6 +4857,7 @@ export default function App() {
         groupSelected={groupSelection}
         maskDestination={
           <MaskDestination
+            onOffset={() => startMaskOffset()}
             onManipulate={(mode) => startMaskManip(mode)}
             onCadEdit={(mode) => startMaskCad(mode)}
             onCalibrate={() => startMaskCalibration()}
@@ -4928,39 +5272,62 @@ export default function App() {
                       }
                     : undefined
                 }
+                maskSidePick={maskOffset?.stage === 'side'}
                 maskEditing={
-                  maskManip?.stage === 'selection'
+                  maskOffset?.stage === 'entity'
                     ? {
-                        entities: manipEntities,
-                        targetMaskId: maskManip.maskId,
+                        entities: offsetEntities,
+                        targetMaskId: maskOffset.maskId,
                         stage: 'targets',
                       }
-                    : maskCad
+                    : maskManip?.stage === 'selection'
                       ? {
-                          entities: cadMaskEntities,
-                          targetMaskId: maskCad.maskId,
-                          all: maskCad.all,
-                          stage: maskCad.stage,
-                          selectedTarget: maskCad.selectedTarget,
+                          entities: manipEntities,
+                          targetMaskId: maskManip.maskId,
+                          stage: 'targets',
                         }
-                      : undefined
+                      : maskCad
+                        ? {
+                            entities: cadMaskEntities,
+                            targetMaskId: maskCad.maskId,
+                            all: maskCad.all,
+                            stage: maskCad.stage,
+                            selectedTarget: maskCad.selectedTarget,
+                          }
+                        : undefined
                 }
                 onMaskEntityPick={
-                  maskManip ? (ref) => toggleManipEntity(ref) : pickMaskCad
+                  maskOffset
+                    ? (ref, at, tolerance) => offsetPoint(at, ref, tolerance)
+                    : maskManip
+                      ? (ref) => toggleManipEntity(ref)
+                      : pickMaskCad
                 }
-                onMaskEntityHover={(ref, at) =>
-                  setMaskCad((s) =>
-                    s
-                      ? {
-                          ...s,
-                          hover: ref ? { ref, at } : undefined,
-                          issue: undefined,
-                        }
-                      : s,
-                  )
+                onMaskEntityHover={(ref, at, tolerance) =>
+                  maskOffset?.stage === 'side'
+                    ? setMaskOffset((s) =>
+                        s
+                          ? {
+                              ...s,
+                              cursor: at,
+                              pickTolerance: tolerance,
+                              issue: undefined,
+                            }
+                          : s,
+                      )
+                    : setMaskCad((s) =>
+                        s
+                          ? {
+                              ...s,
+                              hover: ref ? { ref, at } : undefined,
+                              issue: undefined,
+                            }
+                          : s,
+                      )
                 }
-                maskCadOverlay={manipOverlay ?? maskCadOverlay}
+                maskCadOverlay={offsetOverlay ?? manipOverlay ?? maskCadOverlay}
                 highlightedMaskId={
+                  maskOffset?.maskId ??
                   maskManip?.maskId ??
                   maskCad?.maskId ??
                   maskCalibration?.mask.id
@@ -4981,6 +5348,7 @@ export default function App() {
                   setMaskControl(true);
                 }}
                 previewLines={
+                  offsetLines ??
                   manipLines ??
                   calibrationLines ??
                   nativePreview ??
@@ -5008,11 +5376,13 @@ export default function App() {
                         ],
                         vertexPreview.previewBar,
                       )
-                    : (maskManip?.base ??
+                    : (maskOffset?.points.at(-1) ??
+                      maskManip?.base ??
                       maskCalibration?.points[0] ??
                       transformRequest?.base)
                 }
                 commandActive={
+                  !!maskOffset ||
                   !!maskManip ||
                   !!maskCad ||
                   !!maskCalibration ||
@@ -5033,6 +5403,7 @@ export default function App() {
                 isolatedDetailId={isolatedDetailId}
                 onEditDetail={beginDetailEdit}
                 tool={
+                  maskOffset ||
                   maskManip ||
                   maskCad ||
                   maskCalibration ||
@@ -5049,15 +5420,17 @@ export default function App() {
                 onFinish={finish}
                 onBarChange={editBar}
                 draft={
-                  maskManip?.base
-                    ? [maskManip.base]
-                    : maskCalibration
-                      ? maskCalibration.points.length === 1
-                        ? maskCalibration.points
-                        : []
-                      : vertexRequest && vertexPreview.anchor
-                        ? [vertexPreview.anchor]
-                        : draft
+                  maskOffset?.stage === 'measure'
+                    ? maskOffset.points
+                    : maskManip?.base
+                      ? [maskManip.base]
+                      : maskCalibration
+                        ? maskCalibration.points.length === 1
+                          ? maskCalibration.points
+                          : []
+                        : vertexRequest && vertexPreview.anchor
+                          ? [vertexPreview.anchor]
+                          : draft
                 }
                 grid={grid}
                 snap={snap}
@@ -5088,6 +5461,47 @@ export default function App() {
                 }}
                 showDimensions={dimensions}
               />
+              {maskOffset && (
+                <MaskOffsetPanel
+                  session={maskOffset}
+                  entities={offsetEntities}
+                  preview={offsetPreview}
+                  onInput={(input) =>
+                    setMaskOffset((v) =>
+                      v ? { ...v, input, issue: undefined } : v,
+                    )
+                  }
+                  onDistance={confirmOffsetDistance}
+                  onMeasure={() =>
+                    setMaskOffset((v) =>
+                      v
+                        ? {
+                            ...v,
+                            stage: 'measure',
+                            points: [],
+                            issue: undefined,
+                          }
+                        : v,
+                    )
+                  }
+                  onTarget={pickOffsetTarget}
+                  onRestart={() =>
+                    setMaskOffset((v) =>
+                      v
+                        ? {
+                            ...v,
+                            stage: 'distance',
+                            target: undefined,
+                            cursor: undefined,
+                            points: [],
+                            issue: undefined,
+                          }
+                        : v,
+                    )
+                  }
+                  onEnd={endMaskOffset}
+                />
+              )}
               {maskManip && (
                 <MaskManipPanel
                   session={maskManip}
@@ -5944,6 +6358,7 @@ export default function App() {
           entity={nativeEntity}
           onActivate={activateDrawingMask}
           onOpenContext={openMaskContext}
+          onOffset={startMaskOffset}
           onManipulate={startMaskManip}
           onCadEdit={startMaskCad}
           onCalibrate={startMaskCalibration}

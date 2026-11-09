@@ -9,6 +9,7 @@ import {
   maskEditTarget,
   sameMaskEntity,
   type MaskEntityRef,
+  type MaskCadEntity,
 } from './maskCadEditing';
 import type { MaskDrawingContext } from './maskDrawing';
 import {
@@ -39,6 +40,7 @@ export function maskManipSelection(
   maskId: string,
   refs: MaskEntityRef[],
   context: MaskDrawingContext,
+  prepared?: MaskCadEntity[],
 ) {
   const mask = maskEditTarget(p, maskId, context);
   if (!refs.length)
@@ -46,7 +48,10 @@ export function maskManipSelection(
       'Selecione entidades da máscara ativa; nenhuma entidade será alterada.',
     );
   const available = new Map(
-    maskCadEntities(p, context).map((entity) => [entity.ref.primitive, entity]),
+    (prepared ?? maskCadEntities(p, context)).map((entity) => [
+      entity.ref.primitive,
+      entity,
+    ]),
   );
   const seen = new Set<Primitive>();
   const entities = refs.map((ref) => {

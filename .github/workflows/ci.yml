@@ -27,6 +27,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
+          name: mask-offset-evidence
+          if-no-files-found: ignore
+          path: docs/mask-offset-*.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
           name: mask-manipulation-evidence
           if-no-files-found: ignore
           path: |

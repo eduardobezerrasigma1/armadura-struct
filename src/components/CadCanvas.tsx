@@ -85,6 +85,7 @@ export type CadHandle = {
   getState: () => CadState;
 };
 type Props = {
+  maskSidePick?: boolean;
   maskEditing?: {
     entities: MaskCadEntity[];
     targetMaskId: string;
@@ -97,7 +98,11 @@ type Props = {
     point: Point,
     tolerance: number,
   ) => void;
-  onMaskEntityHover?: (ref: MaskEntityRef | undefined, point: Point) => void;
+  onMaskEntityHover?: (
+    ref: MaskEntityRef | undefined,
+    point: Point,
+    tolerance?: number,
+  ) => void;
   maskCadOverlay?: {
     limits: Primitive[];
     change: Primitive[];
@@ -718,6 +723,10 @@ export default forwardRef<CadHandle, Props>(function CadCanvas(props, ref) {
       setDrag({ screen, view });
       return;
     }
+    if (props.maskSidePick) {
+      props.onMaskEntityPick?.(undefined, fromScreen(screen), 3 / view.s);
+      return;
+    }
     if (props.maskEditing) {
       const at = fromScreen(screen),
         state = props.maskEditing;
@@ -865,9 +874,12 @@ export default forwardRef<CadHandle, Props>(function CadCanvas(props, ref) {
       });
       return;
     }
-    const p = snapAt(fromScreen(screen));
+    const p = props.maskSidePick
+      ? fromScreen(screen)
+      : snapAt(fromScreen(screen));
     setCursor(p);
     props.onCursor(p);
+    if (props.maskSidePick) props.onMaskEntityHover?.(undefined, p, 3 / view.s);
     if (props.maskEditing?.stage === 'targets') {
       const at = fromScreen(screen),
         state = props.maskEditing;

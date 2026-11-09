@@ -174,6 +174,18 @@ export function intersection(
     s = cross(sub(c, a), u) / den;
   return t >= 0 && t <= 1 && s >= 0 && s <= 1 ? add(a, mul(u, t)) : null;
 }
+/** Intersection of two offset lines, using unit directions and a signed left distance. */
+export function offsetMiterPoint(
+  p: Point,
+  u: Point,
+  v: Point,
+  signed: number,
+): Point {
+  const denominator = 1 + dot(u, v);
+  if (denominator < 1e-12)
+    throw new Error('Retorno de 180°: junção paralela indefinida.');
+  return add(p, mul({ x: -u.y - v.y, y: u.x + v.x }, signed / denominator));
+}
 /** Offset a polygon towards its interior or an open chain to its left. Reject intersections. */
 export function offsetChain(
   raw: Point[],
@@ -210,7 +222,7 @@ export function offsetChain(
       v = sub(m.b, m.a),
       den = cross(u, v);
     if (Math.abs(den) < 1e-8) return m.a;
-    const q = add(l.a, mul(u, cross(sub(m.a, l.a), v) / den));
+    const q = offsetMiterPoint(p, unit(u), unit(v), signed);
     if (distance(q, p) > Math.abs(signed) * 20 + 0.01)
       throw new Error('Canto muito agudo para este cobrimento.');
     return q;
