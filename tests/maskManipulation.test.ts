@@ -304,14 +304,43 @@ describe('Manipular entidades de máscaras', () => {
         textHeight: q.textHeight ?? 2.5,
       })),
     );
-    expect(parseDxf(toDxf(z), 'result.dxf').primitives.length).toBeGreaterThan(
-      0,
+    const samePoints = (
+      a: { x: number; y: number }[],
+      b: { x: number; y: number }[],
+    ) =>
+      a.length === b.length &&
+      a.every((q, i) => Math.hypot(q.x - b[i].x, q.y - b[i].y) < 1e-7);
+    const copiedLine = [
+      { x: 1000, y: 0 },
+      { x: 2000, y: 0 },
+    ];
+    const exported = parseDxf(toDxf(z), 'result.dxf').primitives.filter(
+      (q) => !q.text,
     );
+    expect(exported.some((q) => samePoints(q.points, copiedLine))).toBe(true);
+    expect(
+      exported.some((q) =>
+        samePoints(q.points, p.masks[0].primitives[0].points),
+      ),
+    ).toBe(false);
     expect(toPdf(z).length).toBeGreaterThan(100);
     for (const v of z.hierarchy.placements) {
       const a = modelToPaper({ x: 0, y: 0 }, v),
         b = modelToPaper({ x: 1000, y: 0 }, v);
       expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeCloseTo(1000 / v.scale, 9);
+      const view = composeSheet(z, z.sheets[0].id).views.find(
+        (view) => view.placement.id === v.id,
+      )!;
+      expect(
+        view.content.some(
+          (q) =>
+            !q.text &&
+            samePoints(
+              q.points,
+              copiedLine.map((p) => modelToPaper(p, v)),
+            ),
+        ),
+      ).toBe(true);
     }
     expect(
       composeSheet(z, z.sheets[0].id).views.flatMap((v) => v.content).length,

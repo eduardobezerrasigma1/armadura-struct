@@ -1019,6 +1019,10 @@ export default function App() {
     if (ids.length) setSidebarTab('properties');
   };
   const setTool = (t: Tool) => {
+    if (maskManip) {
+      setMaskId(null);
+      setNativeEntity(undefined);
+    }
     setMaskManip(null);
     setMaskCad(null);
     setMaskCalibration(null);
@@ -1871,6 +1875,8 @@ export default function App() {
   );
   const endMaskManip = () => {
     setMaskManip(null);
+    setMaskId(null);
+    setNativeEntity(undefined);
     setToolRaw('select');
     setDraft([]);
   };
@@ -1918,6 +1924,7 @@ export default function App() {
         );
         if (!commit(() => next))
           throw new Error('Exclusão bloqueada. Confira contexto e layers.');
+        setMaskId(null);
         notify(
           `Apagada 1 entidade de ${mask.name}. Máscara preservada; Desfazer disponível.${ignored ? ' Seleção residual de objetos ignorada; aço não participa.' : ''} Cotas estáticas exigem revisão.`,
         );
@@ -3249,6 +3256,21 @@ export default function App() {
     };
     if (manipActions[a]) {
       startMaskManip(manipActions[a]!);
+      return;
+    }
+    if (
+      maskManip &&
+      ['delete', 'copy', 'move', 'rotate', 'mirror', 'clone-armature'].includes(
+        a,
+      )
+    ) {
+      if (a === 'delete' && maskManip.mode === 'erase') finishManip();
+      else {
+        endMaskManip();
+        notify(
+          'Manipular cancelado. Escolha um comando e selecione seus alvos novamente.',
+        );
+      }
       return;
     }
     if (maskManip && ['undo', 'redo'].includes(a)) {
@@ -5966,10 +5988,18 @@ export default function App() {
           onChange={(m, expected) => {
             const current = historyRef.current.present;
             assertLocalMaskEdit(current, expected, m, maskDrawingContext);
-            return commit(() => ({
+            const ok = commit(() => ({
               ...current,
               masks: current.masks.map((old) => (old.id === m.id ? m : old)),
             }));
+            if (
+              ok &&
+              maskId === m.id &&
+              nativeEntity &&
+              !m.primitives.some((q) => q.id === nativeEntity)
+            )
+              setNativeEntity(undefined);
+            return ok;
           }}
           onDelete={(id) => {
             const current = historyRef.current.present;

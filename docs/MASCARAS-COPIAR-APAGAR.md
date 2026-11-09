@@ -8,13 +8,13 @@ Ative a máscara de destino e abra seu desenho/detalhamento. Inicie o comando e 
 
 A seleção é exclusivamente de entidades da máscara ativa. Aço, máscaras inteiras e referências de outras máscaras não entram no conjunto. Uma seleção anterior de armadura é descartada com aviso; clicar em outro alvo durante o comando informa o alcance permitido. Layers ocultos, sem captura ou bloqueados, máscara oculta e isolamento são respeitados e revalidados antes de cada aplicação. No papel é necessário abrir o desenho antes de editar.
 
-O Controle de máscaras reaproveita a entidade nativa previamente escolhida. **Copiar entidade** abre o mesmo fluxo com essa entidade marcada; **Excluir entidade** executa Apagar sobre essa pré-seleção válida, informando o alvo e a quantidade. O controle e o painel avisam que as cotas têm pontos estáticos.
+O Controle de máscaras reaproveita a entidade nativa previamente escolhida. **Usar esta máscara e Copiar entidades** abre o fluxo CAD com essa entidade marcada; **Usar esta máscara e Apagar entidades** executa Apagar sobre essa pré-seleção válida, informando o alvo e a quantidade. A cópia numérica e a exclusão existentes nas propriedades continuam disponíveis, com seus campos e sem fechar o Controle. O controle e o painel avisam que as cotas têm pontos estáticos.
 
-![Seleção acumulada para Apagar](mask-erase-selection.png)
+Captura: **Seleção acumulada para Apagar** (`mask-erase-selection.png`), no artefato de validação abaixo.
 
 ## Apagar
 
-Sem pré-seleção, selecione o conjunto e pressione **Enter** ou **Apagar seleção**. Uma única transação remove somente essas entidades. Apagar a última deixa a máscara vazia e disponível para desenhar. Enter repetido não seleciona outro conjunto. **Desfazer** restaura geometria, IDs e estilos exatos; **Refazer** reaplica a exclusão.
+Sem pré-seleção, selecione o conjunto e pressione **Enter** ou **Apagar seleção**. Uma única transação remove somente essas entidades. Apagar a última deixa a máscara vazia e disponível para desenhar. Enter repetido não seleciona outro conjunto. Delete durante Apagar confirma somente o conjunto; durante Copiar cancela a preparação. Ao encerrar, a seleção gráfica é limpa e a máscara permanece apenas como destino de desenho, sem virar uma seleção integral. **Desfazer** restaura geometria, IDs e estilos exatos; **Refazer** reaplica a exclusão.
 
 **Excluir máscara** continua sendo uma operação separada no Controle de máscaras, com confirmação que identifica o nome e o alcance. Ela preserva as barras. A cópia de uma máscara inteira é a operação explícita de associação/cópia documentada em [Importação e associação](MASCARAS-LOTE.md); os comandos desta página sempre atuam nas entidades.
 
@@ -27,9 +27,9 @@ Sem pré-seleção, selecione o conjunto e pressione **Enter** ou **Apagar sele�
 
 Exemplo em mm: linha e círculo, base `0,0`, destinos `@1000,0` e `@0,1000`. Surgem dois conjuntos novos, além do original. Coordenadas absolutas e polares (`@1000<0`), snaps e ortogonal reutilizam o Comando CAD existente. Vetores relativos partem sempre da base, não da cópia anterior. Um deslocamento inferior a 0,000001 mm é neutro e não cria histórico.
 
-![Prévia da cópia](mask-copy-preview.png)
+Captura: **Prévia da cópia** (`mask-copy-preview.png`), no artefato de validação abaixo.
 
-![Cópia confirmada e próxima prévia descartável](mask-copy-result.png)
+Captura: **Cópia confirmada e próxima prévia descartável** (`mask-copy-result.png`), no artefato de validação abaixo.
 
 Cada cópia recebe IDs novos, com geometria e estilos independentes. Círculos, arcos, retângulos, polilinhas e textos preservam os dados analíticos disponíveis, fechamento, layers, overrides, altura, alinhamento e rotação. Não duplica máscara, metadados de associação ou aço. O destino é a própria máscara ativa declarada; para outro detalhamento use a associação explícita existente.
 
@@ -45,7 +45,7 @@ Cada cópia recebe IDs novos, com geometria e estilos independentes. Círculos, 
 
 Os atalhos específicos são **ERASE**, **APAGARMASCARA**, **MCOPY** e **COPIARMASCARA**. Os atalhos gerais de armaduras não são reaproveitados. O seletor Ferramentas CAD da máscara ativa mantém acesso em Foco/faixa recolhida.
 
-![Acesso em Foco e janela estreita](mask-manip-compact.png)
+Captura: **Acesso em Foco e janela estreita** (`mask-manip-compact.png`), no artefato de validação abaixo.
 
 ## Implementação e validação
 
@@ -54,3 +54,5 @@ Os atalhos específicos são **ERASE**, **APAGARMASCARA**, **MCOPY** e **COPIARM
 `tests/maskManipulation.test.ts` cobre geometria, IDs, proveniência, proteções, concorrência, limites, máscara vazia, RA/CSV, cotas estáticas, arquivo/intercâmbio e exportações. `tests/e2e/maskManipulation.spec.ts` cobre seleção direta e por ID, pré-seleção, repetição, Esc/Enter, coordenadas, máscaras transformadas, histórico, recuperação, troca de contexto e Foco. As capturas são produzidas pelo teste em build de produção e disponibilizadas como artefato da validação GitHub.
 
 Comandos: `npm run check`, `npm run build`, `npm run format:check`, `npm run test:e2e`. A execução interativa do aplicativo Tauri instalado em Linux/Windows não é coberta neste ambiente.
+
+Capturas conferidas: [seleção, prévia, resultado e modo Foco](https://github.com/ricardocorsini/armadura-struct/actions/runs/42542892538/artifacts/13642347953). O artefato contém somente o projeto sintético de testes desta funcionalidade. Artefatos de CI expiram conforme a retenção do GitHub; cada execução dos testes recria as capturas em `docs/mask-*.png` e publica um novo artefato `mask-manipulation-evidence`.

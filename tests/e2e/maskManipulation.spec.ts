@@ -165,7 +165,7 @@ test('Copiar linha/círculo conserva a mesma base e originais em dois destinos, 
   expect((await save(page)).masks).toEqual(second.masks);
   await page.getByRole('tab', { name: 'Arquivo', exact: true }).click();
   const download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Exportar DXF', exact: true }).click();
+  await page.getByRole('button', { name: 'Desenho DXF', exact: true }).click();
   expect(readFileSync((await (await download).path())!, 'utf8')).toContain(
     'LWPOLYLINE',
   );
@@ -194,8 +194,9 @@ test('Copiar em referência DXF transformada mantém vetor físico e ignora dupl
   expect(q.masks[0].primitives).toHaveLength(4);
   const old = maskPoint(q.masks[0].primitives[0].points[0], q.masks[0]),
     added = maskPoint(q.masks[0].primitives[3].points[0], q.masks[0]);
-  expect(added.x - old.x).toBeCloseTo(500, 6);
-  expect(added.y - old.y).toBeCloseTo(0, 6);
+  // Pointer coordinates pass through the browser's screen matrix; domain tests use 1e-9 mm.
+  expect(Math.abs(added.x - old.x - 500)).toBeLessThan(0.001);
+  expect(Math.abs(added.y - old.y)).toBeLessThan(0.001);
   await page.keyboard.press('Escape');
   expect((await save(page)).masks).toEqual(q.masks);
   expect(q.bars).toEqual(before.bars);
@@ -238,7 +239,10 @@ test('Controle reutiliza pré-seleção; Foco, teclado e janela estreita continu
   });
   await expect(dialog).toBeVisible();
   await dialog
-    .getByRole('button', { name: 'Copiar entidade', exact: true })
+    .getByRole('button', {
+      name: 'Usar esta máscara e Copiar entidades',
+      exact: true,
+    })
     .click();
   await expect(panel(page, 'Copiar')).toContainText('1 entidade(s)');
   await page.keyboard.press('Enter');
@@ -269,7 +273,10 @@ test('Apagar com pré-seleção informa alcance, preserva cota e Undo restaura I
   });
   await expect(dialog).toContainText('Cotas têm pontos estáticos');
   await dialog
-    .getByRole('button', { name: 'Excluir entidade', exact: true })
+    .getByRole('button', {
+      name: 'Usar esta máscara e Apagar entidades',
+      exact: true,
+    })
     .click();
   await expect(dialog).toHaveCount(0);
   const after = await save(page);
@@ -329,4 +336,28 @@ test('Copiar abandona prévia com Enter/Esc em cada etapa e troca de máscara ca
     .click();
   await expect(panel(page, 'Copiar')).toHaveCount(0);
   expect((await save(page)).masks).toEqual(first.masks);
+});
+
+test('Delete durante Copiar cancela a prévia e após Apagar não trata máscara ativa como seleção integral', async ({
+  page,
+}) => {
+  await open(page);
+  const before = await save(page);
+  await start(page, 'Copiar');
+  await panel(page, 'Copiar').getByRole('checkbox').nth(0).check();
+  await page.keyboard.press('Enter');
+  await command(page, '0,0');
+  await save(page);
+  await page.keyboard.press('Delete');
+  await expect(panel(page, 'Copiar')).toHaveCount(0);
+  expect((await save(page)).masks).toEqual(before.masks);
+  await start(page);
+  await panel(page).getByRole('checkbox').nth(0).check();
+  await save(page);
+  await page.keyboard.press('Delete');
+  const erased = await save(page);
+  expect(erased.masks[0].primitives).toHaveLength(2);
+  await save(page);
+  await page.keyboard.press('Delete');
+  expect((await save(page)).masks).toEqual(erased.masks);
 });

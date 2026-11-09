@@ -7,6 +7,11 @@ import {
 } from '../domain/nativeMasks';
 import { MaskSelector } from './MaskDestination';
 import { detailPath } from '../domain/hierarchy';
+import { maskCadEntities } from '../domain/maskCadEditing';
+import {
+  applyMaskManipulation,
+  previewMaskManipulation,
+} from '../domain/maskManipulation';
 import {
   maskDrawingState,
   type MaskDrawingContext,
@@ -607,61 +612,58 @@ export default function MaskControl({
                         <button
                           key={label}
                           onClick={() =>
-                            i
-                              ? onManipulate('copy', m.id, eid) && onClose()
-                              : run(() => {
-                                  if (
-                                    !e.native ||
-                                    ![dx, dy, angle].every(Number.isFinite)
-                                  )
-                                    throw new Error('Transformação inválida.');
-                                  const t = (angle * Math.PI) / 180;
-                                  const tr = (p: { x: number; y: number }) => ({
-                                    x:
-                                      p.x * Math.cos(t) -
-                                      p.y * Math.sin(t) +
-                                      dx / m.scale,
-                                    y:
-                                      p.x * Math.sin(t) +
-                                      p.y * Math.cos(t) +
-                                      dy / m.scale,
-                                  });
-                                  const s: NativeShape =
-                                    e.native.kind === 'circle' ||
-                                    e.native.kind === 'arc'
-                                      ? {
-                                          ...e.native,
-                                          center: tr(e.native.center),
-                                          ...(e.native.kind === 'arc'
-                                            ? {
-                                                startAngle:
-                                                  (((e.native.startAngle +
-                                                    angle) %
-                                                    360) +
-                                                    360) %
-                                                  360,
-                                              }
-                                            : {}),
-                                        }
-                                      : {
-                                          kind: 'polyline',
-                                          points: e.points.map(tr),
-                                          closed: !!e.closed,
-                                        };
-                                  const next = nativePrimitive(
-                                    s,
-                                    i ? undefined : e.id,
-                                    e.layer,
-                                  );
-                                  change({
-                                    ...m,
-                                    primitives: i
-                                      ? [...m.primitives, { ...e, ...next }]
-                                      : m.primitives.map((p) =>
-                                          p.id === eid ? { ...p, ...next } : p,
-                                        ),
-                                  });
-                                })
+                            run(() => {
+                              if (
+                                !e.native ||
+                                ![dx, dy, angle].every(Number.isFinite)
+                              )
+                                throw new Error('Transformação inválida.');
+                              const t = (angle * Math.PI) / 180;
+                              const tr = (p: { x: number; y: number }) => ({
+                                x:
+                                  p.x * Math.cos(t) -
+                                  p.y * Math.sin(t) +
+                                  dx / m.scale,
+                                y:
+                                  p.x * Math.sin(t) +
+                                  p.y * Math.cos(t) +
+                                  dy / m.scale,
+                              });
+                              const s: NativeShape =
+                                e.native.kind === 'circle' ||
+                                e.native.kind === 'arc'
+                                  ? {
+                                      ...e.native,
+                                      center: tr(e.native.center),
+                                      ...(e.native.kind === 'arc'
+                                        ? {
+                                            startAngle:
+                                              (((e.native.startAngle + angle) %
+                                                360) +
+                                                360) %
+                                              360,
+                                          }
+                                        : {}),
+                                    }
+                                  : {
+                                      kind: 'polyline',
+                                      points: e.points.map(tr),
+                                      closed: !!e.closed,
+                                    };
+                              const next = nativePrimitive(
+                                s,
+                                i ? undefined : e.id,
+                                e.layer,
+                              );
+                              change({
+                                ...m,
+                                primitives: i
+                                  ? [...m.primitives, { ...e, ...next }]
+                                  : m.primitives.map((p) =>
+                                      p.id === eid ? { ...p, ...next } : p,
+                                    ),
+                              });
+                            })
                           }
                         >
                           {label}
@@ -669,9 +671,29 @@ export default function MaskControl({
                       ),
                     )}
                     <button
-                      onClick={() => {
-                        if (onManipulate('erase', m.id, eid)) onClose();
-                      }}
+                      onClick={() =>
+                        run(() => {
+                          const ref = maskCadEntities(project, context).find(
+                            (entity) =>
+                              entity.mask.id === m.id && entity.ref.id === eid,
+                          )?.ref;
+                          const next = applyMaskManipulation(
+                            project,
+                            previewMaskManipulation(
+                              project,
+                              m.id,
+                              ref ? [ref] : [],
+                              'erase',
+                              context,
+                            ),
+                            context,
+                          );
+                          if (
+                            change(next.masks.find((mask) => mask.id === m.id)!)
+                          )
+                            setEid('');
+                        })
+                      }
                     >
                       Excluir entidade
                     </button>
