@@ -224,9 +224,15 @@ test('novo projeto mostra exemplos legíveis em janela compacta e Esc descarta o
     await expect(
       dialog.getByRole('button', { name: 'Criar projeto', exact: true }),
     ).toBeVisible();
+    await dialog
+      .getByLabel('Nome do detalhamento', { exact: true })
+      .scrollIntoViewIfNeeded();
     await expect(
       dialog.getByLabel('Nome do detalhamento', { exact: true }),
     ).toBeInViewport({ ratio: 1 });
+    await expect(
+      dialog.getByRole('button', { name: 'Criar projeto', exact: true }),
+    ).toBeInViewport();
     await expect(dialog).not.toContainText('Desenho principal');
     if (light)
       await page.screenshot({ path: 'docs/project-groups-compact.png' });

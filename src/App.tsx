@@ -6556,65 +6556,90 @@ export default function App() {
           </aside>
         )}
       </div>
-      <div className="folder-actions" aria-label="Arquivos do projeto">
-        <button
-          disabled={!folderAvailable()}
-          onClick={async () => {
-            try {
-              const base = historyRef.current.present,
-                folder = await pickProjectFolder();
-              if (!folder || historyRef.current.present !== base) return;
-              const raw = await folder.read();
-              if (historyRef.current.present !== base) return;
-              if (raw !== undefined) {
-                if (
-                  decodeProject(raw).id !== base.id ||
-                  JSON.stringify(decodeProject(raw)) !== JSON.stringify(base)
-                )
-                  throw Error(
-                    'Arquivo diferente: abra o existente pelo Novo projeto ou escolha outra pasta.',
-                  );
-                attachProjectFolder(base, folder, raw);
-              } else await createProjectInFolder(base, folder);
-              if (historyRef.current.present !== base) return;
-              setFolderEpoch((n) => n + 1);
-              setSaveState('Salvo na pasta do projeto');
-              notify('Pasta vinculada nesta sessão: ' + folder.label);
-            } catch (e) {
-              notify(String(e));
-            }
-          }}
-        >
-          Localizar/associar pasta
-        </button>
-        <button
-          onClick={async () => {
-            try {
-              await saveFile(
-                `${safeName(p.name)}.armstruct.json`,
-                JSON.stringify(p, null, 2),
-                'application/json',
-                'json',
-              );
-              notify(
-                'Cópia solicitada; destino principal preservado. Confira o arquivo.',
-              );
-            } catch (e) {
-              notify(String(e));
-            }
-          }}
-        >
-          Salvar cópia independente
-        </button>
-        <span>
-          {projectFolderLabel(p)
-            ? 'Pasta: ' + projectFolderLabel(p)
-            : folderHint(p)
-              ? 'Local anterior (reautorize): ' + folderHint(p)
-              : 'Sem pasta autorizada nesta sessão'}
-        </span>
-      </div>
       <footer className="statusbar">
+        <details
+          className="folder-menu"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              e.stopPropagation();
+              e.currentTarget.open = false;
+              e.currentTarget.querySelector('summary')?.focus();
+            }
+          }}
+        >
+          <summary>Arquivos do projeto</summary>
+          <div className="folder-actions" aria-label="Arquivos do projeto">
+            <button
+              disabled={!folderAvailable()}
+              onClick={async (e) => {
+                const menu = e.currentTarget.closest('details');
+                if (menu) {
+                  menu.open = false;
+                  menu.querySelector('summary')?.focus();
+                }
+                try {
+                  const base = historyRef.current.present,
+                    folder = await pickProjectFolder();
+                  if (!folder || historyRef.current.present !== base) return;
+                  const raw = await folder.read();
+                  if (historyRef.current.present !== base) return;
+                  if (raw !== undefined) {
+                    if (
+                      decodeProject(raw).id !== base.id ||
+                      JSON.stringify(decodeProject(raw)) !==
+                        JSON.stringify(base)
+                    )
+                      throw Error(
+                        'Arquivo diferente: abra o existente pelo Novo projeto ou escolha outra pasta.',
+                      );
+                    attachProjectFolder(base, folder, raw);
+                  } else await createProjectInFolder(base, folder);
+                  if (historyRef.current.present !== base) return;
+                  setFolderEpoch((n) => n + 1);
+                  setSaveState('Salvo na pasta do projeto');
+                  notify('Pasta vinculada nesta sessão: ' + folder.label);
+                } catch (e) {
+                  notify(String(e));
+                }
+              }}
+            >
+              Localizar/associar pasta
+            </button>
+            <button
+              onClick={async (e) => {
+                const menu = e.currentTarget.closest('details');
+                if (menu) {
+                  menu.open = false;
+                  menu.querySelector('summary')?.focus();
+                }
+                try {
+                  await saveFile(
+                    `${safeName(p.name)}.armstruct.json`,
+                    JSON.stringify(p, null, 2),
+                    'application/json',
+                    'json',
+                  );
+                  notify(
+                    'Cópia solicitada; destino principal preservado. Confira o arquivo.',
+                  );
+                } catch (e) {
+                  notify(String(e));
+                }
+              }}
+            >
+              Salvar cópia independente
+            </button>
+            <span>
+              {projectFolderLabel(p)
+                ? 'Pasta: ' + projectFolderLabel(p)
+                : folderHint(p)
+                  ? 'Local anterior (reautorize): ' + folderHint(p)
+                  : 'Sem pasta autorizada nesta sessão'}
+            </span>
+          </div>
+        </details>
+
         <span
           className="active-detail-path"
           title={detailPath(p, activeDetailId)}

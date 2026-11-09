@@ -3,6 +3,7 @@ import { toCsv, toDxf } from '../src/lib/exports';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { decodeProject, emptyProject, schedule } from '../src/domain/model';
 import {
+  managedNameConflict,
   createProjectInFolder,
   saveProjectFolder,
   pickProjectFolder,
@@ -40,6 +41,16 @@ async function folder() {
   return (await pickProjectFolder())!;
 }
 describe('contrato da pasta e snapshots', () => {
+  it.each(['SAVE-V1', 'save-v1.', 'save-v1 ', 'ſave-v1'])(
+    'recusa alias portátil de nome administrado %s sem tocar arquivos',
+    async (alias) => {
+      expect(managedNameConflict(alias, 'save-v1')).toBe(true);
+      fs.roots.A.dirs.add(alias);
+      await expect((await folder()).read()).rejects.toThrow('caixa');
+      expect([...fs.roots.A.dirs]).toEqual([alias]);
+      expect(fs.writes).toEqual([]);
+    },
+  );
   it('round-trip conserva geometria, máscaras, hierarquia, configurações e aço/RA/CSV/DXF', async () => {
     const p = decodeProject(JSON.stringify(maskManipFixture())),
       folderA = await folder();

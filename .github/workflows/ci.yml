@@ -69,7 +69,6 @@ jobs:
           name: browser-test-results
           path: test-results
   desktop:
-    needs: validate
     strategy:
       fail-fast: false
       matrix:
@@ -97,6 +96,7 @@ jobs:
         with:
           workspaces: src-tauri -> target
       - run: npm ci
+      - run: npm run build
       - run: cargo test --manifest-path src-tauri/Cargo.toml project_folder::tests
       - run: npm run desktop:build -- --bundles ${{ matrix.bundles }}
         env:

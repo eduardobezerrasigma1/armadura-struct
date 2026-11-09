@@ -71,7 +71,7 @@ test('navegação não regenera descrições; edição, histórico e troca de pr
   await expect(page.locator('[data-bar-id]')).toHaveCount(400);
   await expect(page.locator('[data-representation-id]')).toHaveCount(400);
   await expect(page.locator('.save-status')).toHaveText(
-    'Salvo neste computador',
+    'Apenas recuperável localmente',
   );
   const before = await save(page);
   const undo = page

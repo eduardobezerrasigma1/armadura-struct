@@ -96,6 +96,12 @@ export default function NewProjectDialog({
       if (old?.isConnected) old.focus({ preventScroll: true });
     };
   }, []);
+  useEffect(() => {
+    if (folderError && !busy)
+      dialog.current
+        ?.querySelector<HTMLInputElement>('[aria-label="Pasta do projeto"]')
+        ?.focus();
+  }, [folderError, busy]);
   const touch = (key: string) => setTouched((v) => new Set([...v, key]));
   const error = (field: string, id?: string) =>
     submitted || touched.has(id ?? field)
@@ -361,7 +367,7 @@ export default function NewProjectDialog({
             }
           } catch (e) {
             if (alive.current) {
-              setFolderError((e as Error).message);
+              setFolderError(e instanceof Error ? e.message : String(e));
               setStatus(
                 'Falha: projeto anterior preservado. Pode haver artefatos em save-v1; confira o aviso.',
               );

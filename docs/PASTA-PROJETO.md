@@ -18,7 +18,7 @@ A confirmação de substituição e **Salvar cópia do projeto atual** continuam
 
 Sem manifesto paralelo: o próprio Project conserva IDs, hierarquia, máscaras incorporadas e configurações. Não há novos campos documentais nem migração de schema por causa da pasta. Não são copiados arquivos externos de origem.
 
-Os nomes administrados são constantes ASCII, sem parâmetros vindos do nome da obra ou do arquivo importado. Nomes exibidos com acentos, `CON`, separadores, pontos finais ou extensão não se tornam caminhos. Não há editor de tokens nem extensão repetida. Diferenças de caixa nos nomes administrados são recusadas, inclusive no Linux. Limites de caminho e permissões são os reais do sistema; erro não provoca mudança de destino. A raiz vem exclusivamente do seletor, nunca de texto/pasta incluídos em JSON.
+Os nomes administrados são constantes ASCII, sem parâmetros vindos do nome da obra ou do arquivo importado. Nomes exibidos com acentos, `CON`, separadores, pontos finais ou extensão não se tornam caminhos. Não há editor de tokens nem extensão repetida. Aliases por caixa Unicode ou pontos/espaços finais nos nomes administrados são recusados, inclusive no Linux. Limites de caminho e permissões são os reais do sistema; erro não provoca mudança de destino. A raiz vem exclusivamente do seletor, nunca de texto/pasta incluídos em JSON.
 
 Adote uma raiz por projeto. Uma pasta com outros arquivos pode ser usada se os nomes administrados estiverem livres. Nenhum arquivo alheio é movido, renomeado ou limpo. Um `save-v1` ocupado sem documento reconhecível é recusado; arquivo vazio/inválido também não autoriza sobrescrita. Quando houver documento, **Abrir projeto existente nesta pasta** usa o mesmo leitor nativo e a confirmação de substituição. Outro ID/conteúdo nunca é mesclado automaticamente.
 
@@ -26,7 +26,7 @@ Adote uma raiz por projeto. Uma pasta com outros arquivos pode ser usada se os n
 
 Com vínculo ativo, **Salvar projeto** e o automático (debounce de 500 ms) gravam o arquivo principal sem novo diálogo. Cada vínculo mantém uma fila de snapshots e comparação com o último texto confirmado no disco. A recuperação IndexedDB tem sua própria fila. Uma gravação de A conserva seu adaptador de A durante a abertura de B. Desfazer/refazer restaura o vínculo da sessão junto ao snapshot correspondente; não apaga arquivos/pastas nem cria novas permissões. Desfazer edição e aguardar o automático também salva esse estado desfeito, como qualquer edição.
 
-**Salvar cópia independente** continua usando o seletor de arquivo/download, sem mudar o destino principal. PDF/DXF/CSV e pacotes de detalhamento mantêm os destinos e exportadores anteriores; criar/salvar não os exporta.
+**Arquivos do projeto**, na barra de estado, abre as ações de pasta e cópia em painel compacto sem reduzir a área do CAD. **Salvar cópia independente** continua usando o seletor de arquivo/download, sem mudar o destino principal. PDF/DXF/CSV e pacotes de detalhamento mantêm os destinos e exportadores anteriores; criar/salvar não os exporta.
 
 Estados: **Gravando na pasta**, **Salvo na pasta do projeto**, **Apenas recuperável localmente**, falha de recuperação e **Acesso perdido/falha na pasta**. Só a conclusão da API com releitura coerente permite declarar gravação na pasta. Um download solicitado não confirma existência do arquivo no disco. Em falhas, alterações permanecem em memória e a recuperação local é tentada independentemente; use Salvar novamente, **Localizar/associar pasta** ou **Salvar cópia independente**.
 

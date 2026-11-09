@@ -73,7 +73,10 @@ export function installDirectoryMock() {
         return {
           getFile: async () => new File([files.get(name)!], n),
           createWritable: async () => {
-            if (state.error) throw new DOMException(state.error, state.error);
+            if (state.error)
+              throw state.error === 'native-string'
+                ? 'Pasta somente leitura'
+                : new DOMException(state.error, state.error);
             let staged = '';
             return {
               write: async (s: string) => {

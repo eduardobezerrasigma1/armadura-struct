@@ -33,9 +33,17 @@ export const folderAvailable = () =>
     typeof navigator.locks?.request === 'function');
 const missing = (e: unknown) =>
   e instanceof DOMException && e.name === 'NotFoundError';
+export function managedNameConflict(actual: string, expected: string) {
+  const normalized = actual.normalize('NFC').replace(/[. ]+$/, '');
+  return (
+    actual !== expected &&
+    (normalized.toLowerCase() === expected.toLowerCase() ||
+      normalized.toUpperCase() === expected.toUpperCase())
+  );
+}
 async function checkNames(d: DH, name: string) {
   for await (const [n] of d.entries())
-    if (n.toLowerCase() === name.toLowerCase() && n !== name)
+    if (managedNameConflict(n, name))
       throw Error(
         `Conflito de caixa no nome administrado: ${n}. Escolha outra pasta.`,
       );

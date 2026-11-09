@@ -61,9 +61,15 @@ async function create(p: Page, name: string, key: 'A' | 'B') {
     'Salvo na pasta do projeto',
   );
 }
+async function files(p: Page) {
+  const menu = p.locator('.folder-menu');
+  if (!(await menu.locator('.folder-actions').isVisible()))
+    await menu.locator('summary').click();
+}
 async function copy(p: Page): Promise<Project> {
   const notice = p.getByRole('button', { name: 'Fechar aviso', exact: true });
   if (await notice.isVisible()) await notice.click();
+  await files(p);
   const event = p.waitForEvent('download');
   await p
     .getByRole('button', { name: 'Salvar cópia independente', exact: true })
@@ -155,6 +161,7 @@ test('A/B, edição, histórico, cópia importada e reautorização após recarr
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(a)),
   });
+  await files(page);
   await expect(
     page.getByText('Sem pasta autorizada nesta sessão', { exact: true }),
   ).toBeVisible();
@@ -175,6 +182,7 @@ test('A/B, edição, histórico, cópia importada e reautorização após recarr
     },
     { file, value: JSON.stringify(a, null, 2) },
   );
+  await files(page);
   await page
     .getByRole('button', { name: 'Localizar/associar pasta', exact: true })
     .click();
@@ -325,5 +333,33 @@ test('janela baixa mantém rodapé utilizável e modo sem API permite criar com 
     'Apenas recuperável localmente',
   );
   expect((await copy(page)).name).toBe('Compatível');
+  expect((await mock(page)).writes).toHaveLength(0);
+});
+
+test('erro textual do adaptador nativo permanece legível no campo sem trocar o documento', async ({
+  page,
+}) => {
+  const before = await copy(page);
+  await open(page, 'Sem permissão');
+  await choose(page);
+  await page.evaluate(() => {
+    (window as unknown as { folderMock: DirectoryMock }).folderMock.error =
+      'native-string';
+  });
+  await dialog(page)
+    .getByRole('button', { name: 'Criar projeto', exact: true })
+    .click();
+  await expect(dialog(page).getByRole('alert')).toContainText(
+    'Pasta somente leitura',
+  );
+  await expect(
+    dialog(page).getByLabel('Pasta do projeto', { exact: true }),
+  ).toBeFocused();
+  await expect(page.getByRole('banner').locator('.window-project')).toHaveText(
+    before.name,
+  );
+  await expect(
+    dialog(page).getByLabel('Nome do projeto', { exact: true }),
+  ).toHaveValue('Sem permissão');
   expect((await mock(page)).writes).toHaveLength(0);
 });
