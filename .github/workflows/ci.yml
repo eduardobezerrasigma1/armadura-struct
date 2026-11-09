@@ -27,6 +27,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
+          name: contextual-tree-evidence
+          if-no-files-found: ignore
+          path: docs/contextual-tree-*.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
           name: project-folder-evidence
           if-no-files-found: ignore
           path: docs/project-folder-*.png

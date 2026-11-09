@@ -1,0 +1,11 @@
+# Criação contextual na árvore
+
+Na aba lateral **Projeto**, o **+** do pavimento abre **Criar grupo** com aquele pavimento preenchido; o **+** do grupo abre **Criar detalhamento** com aquele grupo preenchido. Os nomes acessíveis mostram o caminho completo (por exemplo, **Adicionar detalhamento em Cobertura / V01**). Elemento continua sendo apresentado como grupo no editor existente. Os botões permanecem visíveis em ramos vazios/recolhidos e encontrados pela pesquisa; expansão e edição são controles separados.
+
+O nome começa vazio na entrada contextual e recebe foco. O destino aparece no formulário e no seletor; trocá-lo exige ação explícita. **Enter** confirma; **Esc**, **Cancelar edição** e **×** descartam o formulário sem alterar o documento. Trocar para outra ação do editor com valores modificados pede confirmação de descarte. Erros conservam o preenchimento. Se o projeto mudar durante a edição, a submissão fica inválida: cancele e reabra para conferir o destino. Ao trocar de projeto, o formulário anterior é desmontado. O modo isolado conserva as proteções existentes e oferece **Organizar projeto**.
+
+A criação usa `createHierarchyNode`, sem novo modelo ou schema: grupo não gera detalhamento, desenho ou aço; detalhamento recebe exatamente o desenho inicial existente e fica ativo para novos objetos. O formulário fecha após sucesso, impedindo nova confirmação do mesmo rascunho. As entradas gerais continuam disponíveis e conservam o último pai criado como sugestão.
+
+Os ancestrais do novo item são expandidos, mantendo os demais ramos. O resultado é anunciado com **Revelar item criado**. A pesquisa permanece intacta; esse botão limpa o filtro somente por ação explícita e leva o foco ao item. IDs, vínculos, salvar/reabrir e desfazer/refazer usam os contratos atuais; consultar/preencher não grava histórico.
+
+Verificações: teste de domínio com grupos homônimos, pai inválido, desenho único e RA/CSV inalterados; E2E com pai contextual, foco/teclado, contexto alterado, cancelamento, validação, filtro, repetição, histórico e round-trip. O Chromium em CI usa contexto com toque habilitado e captura telas do resultado/cancelamento. Hardware de toque real e navegação interativa em desktop Linux/Windows não foram homologados nesta entrega; os builds desktop são verificados em CI. Capturas ficam no artefato `contextual-tree-evidence`.

@@ -61,7 +61,7 @@ export default function HierarchyNavigator({
   project: Project;
   activeDetailId: string;
   onActive: (id: string) => void;
-  onChange: (project: Project) => void;
+  onChange: (project: Project) => boolean | void;
   selected: string[];
   search: string;
   onSearch: (text: string) => void;
@@ -111,6 +111,13 @@ export default function HierarchyNavigator({
     const added = ids.filter((id) => !seen.current.has(id));
     if (added.length) {
       const parents = [
+        ...h.details
+          .filter((d) => added.includes(d.id))
+          .flatMap((d) =>
+            h.elements
+              .filter((e) => e.id === d.elementId)
+              .map((e) => e.floorId),
+          ),
         ...h.elements.filter((e) => added.includes(e.id)).map((e) => e.floorId),
         ...h.details
           .filter((d) => added.includes(d.id))
@@ -130,11 +137,33 @@ export default function HierarchyNavigator({
   const [editor, setEditor] = useState<{
     kind: HierarchyKind;
     id?: string;
+    base: Project;
   } | null>(null);
   const [name, setName] = useState(''),
     [parent, setParent] = useState(''),
     [error, setError] = useState('');
   const [target, setTarget] = useState('');
+  const nameInput = useRef<HTMLInputElement>(null);
+  const submitted = useRef(false);
+  const initial = useRef({ name: '', parent: '' });
+  const lastCreated = useRef<{ kind: HierarchyKind; id: string } | null>(null);
+  const [created, setCreated] = useState<{
+    kind: HierarchyKind;
+    id: string;
+    name: string;
+  } | null>(null);
+  const stale = !!editor && editor.base !== project;
+  const cancel = () => {
+    setEditor(null);
+    setError('');
+  };
+  useEffect(() => {
+    if (editor) {
+      nameInput.current?.focus();
+      nameInput.current?.select();
+    }
+  }, [editor]);
+
   useEffect(() => {
     setEditor(null);
     setError('');
@@ -142,7 +171,17 @@ export default function HierarchyNavigator({
   const active = h.details.find((d) => d.id === activeDetailId)!;
   const activeElement = h.elements.find((e) => e.id === active.elementId)!;
   const begin = (kind: HierarchyKind, id?: string, parentOverride?: string) => {
+    if (
+      editor &&
+      (name !== initial.current.name || parent !== initial.current.parent) &&
+      !window.confirm(
+        'Descartar o rascunho da hierarquia e iniciar outra ação?',
+      )
+    )
+      return false;
+    submitted.current = false;
     setError('');
+
     const node =
       kind === 'floor'
         ? h.floors.find((f) => f.id === id)
@@ -158,27 +197,36 @@ export default function HierarchyNavigator({
     const destination =
       parentOverride ||
       existingParent ||
-      (kind === 'element' && editor?.kind === 'floor' && editor.id
-        ? editor.id
-        : kind === 'detail' && editor?.kind === 'element' && editor.id
-          ? editor.id
+      (kind === 'element' && (editor ?? lastCreated.current)?.kind === 'floor'
+        ? (editor ?? lastCreated.current)!.id!
+        : kind === 'detail' &&
+            (editor ?? lastCreated.current)?.kind === 'element'
+          ? (editor ?? lastCreated.current)!.id!
           : kind === 'element'
             ? activeElement.floorId
             : active.elementId);
     setParent(destination);
-    setName(
+    const value =
       node?.name ??
-        (kind === 'element'
+      (parentOverride
+        ? ''
+        : kind === 'element'
           ? nextGroupName(project, destination)
           : kind === 'detail'
             ? nextDetailName(project, destination)
-            : ''),
-    );
-    setEditor({ kind, id });
+            : '');
+    initial.current = { name: value, parent: destination };
+    setName(value);
+    setEditor({ kind, id, base: project });
+    return true;
   };
+
   const apply = (change: () => Project) => {
     try {
-      onChange(change());
+      if (onChange(change()) === false)
+        throw Error(
+          'A alteração não foi aplicada. Confira o contexto e tente novamente.',
+        );
       setError('');
       return true;
     } catch (e) {
@@ -216,8 +264,19 @@ export default function HierarchyNavigator({
     count: number,
   ) => {
     const expanded = !!query || open.includes(id);
+    const destination =
+      kind === 'floor'
+        ? title
+        : kind === 'element'
+          ? `${h.floors.find((f) => f.id === h.elements.find((e) => e.id === id)?.floorId)?.name} / ${title}`
+          : index.paths.get(id);
+
     return (
-      <div className={`hierarchy-node hierarchy-${kind}`} key={id}>
+      <div
+        className={`hierarchy-node hierarchy-${kind}`}
+        key={id}
+        id={`hierarchy-${id}`}
+      >
         <div
           className={`hierarchy-row ${activeDetailId === id ? 'active' : ''}`}
         >
@@ -284,8 +343,7 @@ export default function HierarchyNavigator({
               aria-label={`Editar detalhamento ${title}`}
               disabled={!!scopeDetailId && scopeDetailId !== id}
               onClick={() => {
-                begin(kind, id);
-                onActive(id);
+                if (begin(kind, id)) onActive(id);
               }}
             >
               <Pencil size={12} />
@@ -294,12 +352,8 @@ export default function HierarchyNavigator({
             <button
               type="button"
               className="hierarchy-row-action"
-              title={
-                kind === 'floor'
-                  ? 'Adicionar grupo neste pavimento'
-                  : 'Adicionar detalhamento neste grupo'
-              }
-              aria-label={`Adicionar ${kind === 'floor' ? 'grupo' : 'detalhamento'} em ${title}`}
+              title={`Adicionar ${kind === 'floor' ? 'elemento (grupo)' : 'detalhamento'} em ${destination}`}
+              aria-label={`Adicionar ${kind === 'floor' ? 'elemento' : 'detalhamento'} em ${destination}`}
               disabled={!!scopeDetailId}
               onClick={() =>
                 begin(kind === 'floor' ? 'element' : 'detail', undefined, id)
@@ -436,12 +490,47 @@ export default function HierarchyNavigator({
             <p className="tree-empty">Nenhum resultado.</p>
           )}
       </div>
+      {created && (
+        <p role="status" className="hierarchy-created">
+          Criado: {created.name}. {query ? 'A pesquisa continua ativa.' : ''}{' '}
+          <button
+            type="button"
+            onClick={() => {
+              onSearch('');
+              requestAnimationFrame(() =>
+                document
+                  .getElementById(`hierarchy-${created.id}`)
+                  ?.querySelector<HTMLButtonElement>('.hierarchy-name')
+                  ?.focus(),
+              );
+            }}
+          >
+            Revelar item criado
+          </button>
+        </p>
+      )}
       {editor && (
         <form
           className="hierarchy-editor"
           aria-label={`${editor.id ? 'Editar' : 'Criar'} ${nouns[editor.kind]}`}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              cancel();
+            }
+          }}
           onSubmit={(event) => {
             event.preventDefault();
+            if (submitted.current) return;
+            if (stale) {
+              setError(
+                'O projeto mudou. Cancele e reabra a ação para conferir o pai.',
+              );
+              return;
+            }
+            submitted.current = true;
+
             if (editor.id) {
               if (
                 apply(() =>
@@ -453,8 +542,10 @@ export default function HierarchyNavigator({
                     parent,
                   ),
                 )
-              )
+              ) {
                 setEditor(null);
+                return;
+              }
             } else {
               let createdId = '';
               if (
@@ -470,10 +561,23 @@ export default function HierarchyNavigator({
                 })
               ) {
                 if (editor.kind === 'detail') onActive(createdId);
-                // Keep the newly created parent selected for the next toolbar action.
-                setEditor({ kind: editor.kind, id: createdId });
+                lastCreated.current = { kind: editor.kind, id: createdId };
+                setCreated({
+                  kind: editor.kind,
+                  id: createdId,
+                  name: name.trim(),
+                });
+                setEditor(null);
+                requestAnimationFrame(() =>
+                  document
+                    .getElementById(`hierarchy-${createdId}`)
+                    ?.querySelector<HTMLButtonElement>('.hierarchy-name')
+                    ?.focus(),
+                );
+                return;
               }
             }
+            submitted.current = false;
           }}
         >
           <div className="hierarchy-editor-heading">
@@ -483,10 +587,7 @@ export default function HierarchyNavigator({
             <button
               type="button"
               aria-label="Fechar edição da hierarquia"
-              onClick={() => {
-                setEditor(null);
-                setError('');
-              }}
+              onClick={cancel}
             >
               <X size={12} />
             </button>
@@ -496,6 +597,7 @@ export default function HierarchyNavigator({
             <input
               aria-label={`Nome do ${nouns[editor.kind]}`}
               autoFocus
+              ref={nameInput}
               placeholder={
                 editor.kind === 'floor'
                   ? 'Térreo, Cobertura…'
@@ -548,19 +650,42 @@ export default function HierarchyNavigator({
               </select>
             </label>
           )}
+          <p className="hierarchy-destination">
+            Destino:{' '}
+            {editor.kind === 'floor'
+              ? 'Raiz do projeto'
+              : editor.kind === 'element'
+                ? (h.floors.find((f) => f.id === parent)?.name ??
+                  'Pavimento removido')
+                : (() => {
+                    const e = h.elements.find((e) => e.id === parent);
+                    return e
+                      ? `${h.floors.find((f) => f.id === e.floorId)?.name} / ${e.name}`
+                      : 'Elemento removido';
+                  })()}
+          </p>
+          {stale && (
+            <p role="alert">
+              O projeto mudou. Cancele e reabra a ação; o rascunho não foi
+              aplicado.
+            </p>
+          )}
           <div className="hierarchy-tools">
+            <button type="button" onClick={cancel}>
+              Cancelar edição
+            </button>
             {editor.id && editor.kind === 'detail' && (
               <button type="button" onClick={() => onSelectDetail(editor.id!)}>
                 Selecionar conjunto
               </button>
             )}
-            <button type="submit">
+            <button type="submit" disabled={stale}>
               {editor.id ? 'Salvar alterações' : `Criar ${nouns[editor.kind]}`}
             </button>
             {editor.id && (
               <button
                 type="button"
-                disabled={!!scopeDetailId}
+                disabled={!!scopeDetailId || stale}
                 onClick={() => {
                   if (
                     apply(() =>

@@ -970,7 +970,7 @@ export function ProjectTree({
   onDemo: () => void;
   activeDetailId: string;
   onActiveDetail: (id: string) => void;
-  onHierarchy: (project: Project) => void;
+  onHierarchy: (project: Project) => boolean;
   isolatedDetailId?: string;
   onEditDetail: (id: string) => void;
   onSelectDetail: (id: string) => void;

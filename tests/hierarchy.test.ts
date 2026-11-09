@@ -292,3 +292,35 @@ function physicalCsv(p: Parameters<typeof toCsv>[0]) {
     .split('\r\n')
     .map((r) => r.split(';').slice(0, 10).join(';'));
 }
+
+it('explicit contextual parents isolate homonymous groups and create exactly one initial drawing without steel changes', () => {
+  const original = demoProject();
+  const floor = createHierarchyNode(original, 'floor', 'Cobertura');
+  const lower = createHierarchyNode(
+    floor.project,
+    'element',
+    'V01',
+    original.hierarchy.floors[0].id,
+  );
+  const upper = createHierarchyNode(lower.project, 'element', 'V01', floor.id);
+  expect(upper.project.hierarchy.details).toEqual(original.hierarchy.details);
+  const made = createHierarchyNode(
+    upper.project,
+    'detail',
+    'Armação',
+    upper.id,
+  );
+  expect(
+    made.project.hierarchy.details.find((d) => d.id === made.id)?.elementId,
+  ).toBe(upper.id);
+  expect(
+    made.project.hierarchy.drawings.filter((d) => d.detailId === made.id),
+  ).toHaveLength(1);
+  expect(toCsv(made.project)).toBe(toCsv(original));
+  expect(schedule(made.project)).toEqual(schedule(original));
+  const restored = decodeProject(JSON.stringify(made.project));
+  expect(restored.hierarchy).toEqual(made.project.hierarchy);
+  expect(() =>
+    createHierarchyNode(original, 'detail', 'Armação', upper.id),
+  ).toThrow('inexistente');
+});

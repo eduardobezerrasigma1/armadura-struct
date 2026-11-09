@@ -4000,3 +4000,21 @@ button.hierarchy-drawing {
 .folder-actions span {
   overflow-wrap: anywhere;
 }
+
+.hierarchy-row {
+  min-height: 28px;
+  height: auto;
+}
+.hierarchy-row .hierarchy-row-action {
+  width: 28px;
+  height: 28px;
+}
+.hierarchy-navigator button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.hierarchy-created,
+.hierarchy-destination {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
