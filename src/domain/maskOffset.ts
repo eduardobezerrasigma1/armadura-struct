@@ -85,6 +85,14 @@ function inside(p: Point, pts: Point[]) {
   return result;
 }
 function simplePath(pts: Point[], closed: boolean) {
+  const edgeCount = closed ? pts.length : pts.length - 1;
+  const comparisons = closed
+    ? (edgeCount * (edgeCount - 3)) / 2
+    : ((edgeCount - 1) * (edgeCount - 2)) / 2;
+  if (comparisons > 250000)
+    throw new Error(
+      'Contorno excede o orçamento de 250 mil comparações; sem simplificação automática.',
+    );
   const curve = pathCurve(pts, closed),
     count = closed ? pts.length : pts.length - 1;
   const edges = Array.from({ length: count }, (_, i) =>

@@ -1940,6 +1940,7 @@ export default function App() {
     if (!maskOffset) return;
     try {
       const distanceMm = parseOffsetDistance(maskOffset.input);
+      lastOffset.current = null;
       offsetSuggestion.current = maskOffset.input;
       setMaskOffset({
         ...maskOffset,
@@ -1957,6 +1958,7 @@ export default function App() {
   const pickOffsetTarget = (ref?: MaskEntityRef) => {
     const s = maskOffset;
     if (!s) return;
+    lastOffset.current = null;
     if (!ref) {
       setMaskOffset({
         ...s,

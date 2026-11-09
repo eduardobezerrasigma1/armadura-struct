@@ -224,6 +224,10 @@ test('Distância por dois pontos usa coordenadas relativas e Enter/Esc descartam
   await command(page, '0,0');
   await command(page, '@100,0');
   await expect(panel(page).getByTestId('offset-distance')).toContainText('100');
+  await panel(page).getByLabel('Pesquisar entidades Offset').press('Enter');
+  await expect(panel(page)).toHaveCount(0);
+  expect((await save(page)).masks).toEqual(before.masks);
+  await start(page);
   await choose(page);
   await point(page, { x: 400, y: 300 }, true);
   await page.keyboard.press('Enter');

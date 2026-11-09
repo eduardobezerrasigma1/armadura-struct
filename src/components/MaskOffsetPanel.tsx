@@ -60,8 +60,16 @@ export default function MaskOffsetPanel({
         if (
           e.key === 'Enter' &&
           (e.target as HTMLElement).closest('input,select,button')
-        )
+        ) {
           e.stopPropagation();
+          if (
+            s.stage !== 'distance' &&
+            (e.target as HTMLElement).closest('input')
+          ) {
+            e.preventDefault();
+            onEnd();
+          }
+        }
       }}
     >
       <div className="transform-heading">
@@ -116,7 +124,7 @@ export default function MaskOffsetPanel({
           <p>
             Distância:{' '}
             <output data-testid="offset-distance">
-              {format(s.distanceMm!, 9)} mm
+              {format(s.distanceMm!, 9).replace(/,?0+$/, '')} mm
             </output>
             . Clique{' '}
             {s.stage === 'entity'
