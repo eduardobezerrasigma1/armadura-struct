@@ -1,3 +1,4 @@
+import { detachProject, rememberFolder } from './projectFolder';
 import { isTauri } from '@tauri-apps/api/core';
 import type { Mask, Project } from '../domain/types';
 import { decodeProject } from '../domain/model';
@@ -73,9 +74,11 @@ export async function readProjectFile(
 ): Promise<Project> {
   if (file.size > 100 * 1024 * 1024)
     throw new Error('Use um projeto de até 100 MB.');
-  return decodeProject(await file.text(), {
-    allowOrphanReferences: forDetailTransfer,
-  });
+  return detachProject(
+    decodeProject(await file.text(), {
+      allowOrphanReferences: forDetailTransfer,
+    }),
+  );
 }
 /** Packages and complete projects converge on the same AS-08 comparison. */
 export async function readDetailSourceFile(
@@ -265,7 +268,14 @@ function database(): Promise<IDBDatabase> {
     req.onerror = () => reject(req.error);
   });
 }
-export async function autosave(p: Project) {
+let recoveryQueue: Promise<unknown> = Promise.resolve();
+export function autosave(p: Project) {
+  const task = recoveryQueue.catch(() => {}).then(() => writeRecovery(p));
+  recoveryQueue = task;
+  return task;
+}
+async function writeRecovery(p: Project) {
+  rememberFolder(p);
   const db = await database();
   try {
     await new Promise<void>((resolve, reject) => {

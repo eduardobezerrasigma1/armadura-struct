@@ -1,4 +1,7 @@
-import { confirmProjectReplacement } from './projectSetup.helpers';
+import {
+  confirmProjectReplacement,
+  useCompatibleProjectFolders,
+} from './projectSetup.helpers';
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { emptyProject, newBar } from '../../src/domain/model';
@@ -140,7 +143,10 @@ test('existing project recovery takes precedence over the initial example; New r
     .locator('.quick-tools')
     .getByRole('button', { name: 'Novo projeto', exact: true })
     .click();
-  await page.getByRole('dialog').getByRole('textbox').fill('Vazio');
+  await page
+    .getByRole('dialog')
+    .getByLabel('Nome do projeto', { exact: true })
+    .fill('Vazio');
   await confirmProjectReplacement(page);
   await page
     .getByRole('button', { name: 'Criar projeto', exact: true })
@@ -204,3 +210,5 @@ test('a damaged recovery is kept intact instead of being overwritten by autosave
     page.getByRole('button', { name: 'Conferir exemplo', exact: true }),
   ).toHaveCount(0);
 });
+
+useCompatibleProjectFolders();

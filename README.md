@@ -107,7 +107,7 @@ Abra `http://127.0.0.1:1420`. O `npm ci` copia o leitor WebAssembly para `public
 
 ## Primeiros passos
 
-1. Na primeira abertura, conheça o **[Exemplo ArmaduraStruct](docs/examples/initial/README.md)**: duas pranchas de vigas e pilares, 64 posições e 1.181 peças. Use **Conferir exemplo** para comparar a RA original com os comprimentos e pesos calculados. Projetos recuperados têm prioridade. Em **[Novo projeto](docs/NOVO-PROJETO.md)**, informe apenas o nome ou prepare pavimentos, elementos e detalhamentos antes de desenhar; o arquivo nasce vazio, sem armaduras de demonstração.
+1. Na primeira abertura, conheça o **[Exemplo ArmaduraStruct](docs/examples/initial/README.md)**: duas pranchas de vigas e pilares, 64 posições e 1.181 peças. Use **Conferir exemplo** para comparar a RA original com os comprimentos e pesos calculados. Projetos recuperados têm prioridade. Em **[Novo projeto](docs/NOVO-PROJETO.md)**, informe o nome, escolha a pasta (ou modo compatível no navegador) e prepare pavimentos, elementos e detalhamentos antes de desenhar; o arquivo nasce vazio, sem armaduras de demonstração.
 2. Em **Máscaras → Importar DXF / DWG**, escolha um ou vários arquivos, confira os destinos e leia as referências antes de **Aplicar lote**. Abra o resultado e confira a unidade e uma distância conhecida com **Medir**. [Fluxo completo](docs/MASCARAS-LOTE.md).
 3. Use **Barra livre**, **Estribo** ou **Seguir fôrma**. As coordenadas e propriedades geométricas são em **mm**.
 4. Selecione a posição para editar aço, bitola, quantidade e geometria. Ajuste o mandril e os ganchos para o projeto.
@@ -132,7 +132,7 @@ Veja [o guia de comandos e convenções](docs/GUIA.md), os [contratos da composi
 - O traspasse é inserido manualmente e acrescentado ao comprimento total das duas peças; não é dimensionado a partir do concreto ou da aderência. A divisão deve ocorrer inteiramente em uma perna reta, fora das dobras.
 - Cotas/cortes são anotações gráficas, sem geração automática de seções de concreto. O vínculo atualiza a identificação da barra; os pontos da anotação são posicionados pelo usuário.
 - Projetos nos formatos 1–22 são migrados ao abrir, preservando objetos, coordenadas, IDs, rebatimentos e quantitativos. O formato salvo é `armadurastruct/23`, com composição da quantidade, dados de montagem, posições de fabricação e repetição por detalhamento, contexto da RA bloqueada, origens, composição, vínculos validados e perfis de layers por desenho/vista. Aplicativos antigos não abrem esse formato; mantenha cópias dos originais. A quantidade armazenada na barra é a base por grupo; o quadro aplica o multiplicador da armadura e a repetição do detalhe uma única vez.
-- O salvamento automático guarda o último projeto neste dispositivo. Use **Salvar projeto** para manter cópias independentes.
+- Com [pasta autorizada](docs/PASTA-PROJETO.md), Salvar e o automático atualizam `save-v1/projeto.armstruct.json`. A recuperação local continua complementar; sem API de pasta, use download manual. **Salvar cópia independente** conserva o destino principal.
 
 ## Verificar e compilar
 

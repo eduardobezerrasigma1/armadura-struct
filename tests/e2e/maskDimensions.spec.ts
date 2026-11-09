@@ -96,7 +96,7 @@ test('Medir consulta 3-4-5, prévia, ΔX/ΔY, unidades, repetição e zoom sem o
   const before = await save(page),
     csv = await exported(page, 'Quadro CSV');
   await expect(page.locator('.save-status')).toHaveText(
-    'Salvo neste computador',
+    'Apenas recuperável localmente',
   );
   await page
     .getByRole('button', { name: 'Medir distância', exact: true })
@@ -118,7 +118,7 @@ test('Medir consulta 3-4-5, prévia, ΔX/ΔY, unidades, repetição e zoom sem o
   await expect(panel(page).getByRole('status')).toContainText('5,000 m');
   expect(await save(page)).toEqual(before);
   await expect(page.locator('.save-status')).toHaveText(
-    'Salvo neste computador',
+    'Apenas recuperável localmente',
   );
   await page.screenshot({ path: 'docs/mask-dimensions-measure.png' });
   await command(page, '0,0');

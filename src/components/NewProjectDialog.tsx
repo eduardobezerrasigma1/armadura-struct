@@ -1,3 +1,9 @@
+import {
+  folderAvailable,
+  pickProjectFolder,
+  PROJECT_FILE,
+  type ProjectFolder,
+} from '../lib/projectFolder';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { Project } from '../domain/types';
@@ -24,14 +30,30 @@ export default function NewProjectDialog({
   pendingWork,
   onCreate,
   onSaveCurrent,
+  onOpenExisting,
   onClose,
 }: {
   current: Project;
   pendingWork: boolean;
-  onCreate: (draft: ProjectSetupDraft, base: Project) => boolean;
+  onCreate: (
+    draft: ProjectSetupDraft,
+    base: Project,
+    folder?: ProjectFolder,
+  ) => Promise<boolean>;
+  onOpenExisting: (
+    raw: string,
+    folder: ProjectFolder,
+    base: Project,
+  ) => Promise<boolean>;
   onSaveCurrent: (base: Project) => Promise<boolean>;
   onClose: () => void;
 }) {
+  const [folder, setFolder] = useState<ProjectFolder>();
+  const [existing, setExisting] = useState<string>();
+  const [folderError, setFolderError] = useState('');
+  const close = () => {
+    if (!submitting.current) onClose();
+  };
   const pending = useRef(pendingWork).current;
   const backdropStart = useRef(false);
   const base = useRef(current).current,
@@ -192,7 +214,7 @@ export default function NewProjectDialog({
       aria-labelledby="setup-title"
       onCancel={(e) => {
         e.preventDefault();
-        onClose();
+        close();
       }}
       onClose={() => {
         if (!dialog.current?.open) onClose();
@@ -215,7 +237,7 @@ export default function NewProjectDialog({
           e.clientY < r.top ||
           e.clientY > r.bottom
         )
-          onClose();
+          close();
       }}
       onKeyDown={(e) => {
         e.stopPropagation();
@@ -226,6 +248,7 @@ export default function NewProjectDialog({
             ),
           ].filter(
             (n) =>
+              !n.closest('[inert]') &&
               n.tabIndex >= 0 &&
               n.getClientRects().length > 0 &&
               getComputedStyle(n).visibility !== 'hidden',
@@ -260,7 +283,7 @@ export default function NewProjectDialog({
           type="button"
           className="modal-close"
           aria-label="Fechar Novo projeto"
-          onClick={onClose}
+          onClick={close}
         >
           <X size={19} />
         </button>
@@ -268,7 +291,7 @@ export default function NewProjectDialog({
       <form
         noValidate
         aria-busy={busy}
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
           if (submitting.current || stale) return;
           setSubmitted(true);
@@ -306,27 +329,52 @@ export default function NewProjectDialog({
             );
             return;
           }
+          if (folderAvailable() && !folder) {
+            setFolderError('Escolha uma pasta gravável para criar.');
+            return;
+          }
+          if (existing) {
+            setFolderError(
+              'A pasta já possui um projeto. Abra o existente ou escolha outra pasta.',
+            );
+            return;
+          }
           submitting.current = true;
           setBusy(true);
-          if (
-            !onCreate(
-              {
-                ...draft,
-                project: prepared.project,
-                activeDetailId: prepared.activeDetailId,
-              },
-              base,
-            )
-          ) {
-            submitting.current = false;
-            setBusy(false);
-            setStatus(
-              'Não foi possível criar. O projeto atual permanece aberto; confira o aviso do aplicativo.',
-            );
+          try {
+            if (
+              !(await onCreate(
+                {
+                  ...draft,
+                  project: prepared.project,
+                  activeDetailId: prepared.activeDetailId,
+                },
+                base,
+                folder,
+              ))
+            ) {
+              submitting.current = false;
+              setBusy(false);
+              setStatus(
+                'Não foi possível criar. O projeto atual permanece aberto; confira o aviso do aplicativo.',
+              );
+            }
+          } catch (e) {
+            if (alive.current) {
+              setFolderError((e as Error).message);
+              setStatus(
+                'Falha: projeto anterior preservado. Pode haver artefatos em save-v1; confira o aviso.',
+              );
+            }
+          } finally {
+            if (alive.current) {
+              submitting.current = false;
+              setBusy(false);
+            }
           }
         }}
       >
-        <div className="setup-body">
+        <div className="setup-body" inert={busy}>
           <label className="field" htmlFor="setup-project-name">
             <span>Nome do projeto</span>
             <input
@@ -353,6 +401,104 @@ export default function NewProjectDialog({
               {error('name')}
             </p>
           )}
+          <section aria-label="Pasta do projeto">
+            <label className="field">
+              Pasta do projeto
+              <input
+                aria-label="Pasta do projeto"
+                readOnly
+                aria-invalid={!!folderError}
+                aria-describedby={
+                  folderError ? 'setup-folder-error' : undefined
+                }
+                value={folder?.label ?? ''}
+                placeholder={
+                  folderAvailable()
+                    ? 'Escolha uma pasta'
+                    : 'Modo compatível: recuperação local e download manual'
+                }
+              />
+            </label>
+            {folderAvailable() ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={async () => {
+                  try {
+                    const next = await pickProjectFolder();
+                    if (!next || !alive.current) return;
+                    const raw = await next.read();
+                    if (!alive.current) return;
+                    setFolder(next);
+                    setExisting(raw);
+                    setFolderError('');
+                  } catch (e) {
+                    if (alive.current) setFolderError(String(e));
+                  }
+                }}
+              >
+                Escolher pasta
+              </button>
+            ) : (
+              <p>
+                Este navegador não oferece escrita de diretório. O editor
+                funciona com recuperação local; use Salvar para solicitar
+                download, sem confirmação de gravação em disco.
+              </p>
+            )}
+            {folder && (
+              <p>
+                Arquivo principal: {folder.label}/{PROJECT_FILE}. Somente
+                save-v1 é criado ao confirmar; exportações mantêm seus diálogos.
+              </p>
+            )}
+            {existing && folder && (
+              <button
+                type="button"
+                disabled={busy || stale}
+                onClick={async () => {
+                  if (submitting.current) return;
+                  if (replacement && !ack) {
+                    setStatus(
+                      'Confirme a substituição antes de abrir o existente.',
+                    );
+                    return;
+                  }
+                  submitting.current = true;
+                  setBusy(true);
+                  try {
+                    if (
+                      !(await onOpenExisting(existing, folder, base)) &&
+                      alive.current
+                    )
+                      setFolderError(
+                        'Não foi possível abrir. Confira o arquivo e o aviso do aplicativo.',
+                      );
+                  } catch (e) {
+                    if (alive.current) setFolderError(String(e));
+                  } finally {
+                    if (alive.current) {
+                      submitting.current = false;
+                      setBusy(false);
+                    }
+                  }
+                }}
+              >
+                Abrir projeto existente nesta pasta
+              </button>
+            )}
+            {folderError && (
+              <p role="alert" className="setup-error" id="setup-folder-error">
+                {folderError}
+              </p>
+            )}
+            {busy && (
+              <p role="status">
+                Gravando/preparando. Aguarde antes de fechar; o projeto aberto
+                só será substituído após sucesso.
+              </p>
+            )}
+          </section>
           <details className="setup-optional">
             <summary>Responsável (opcional)</summary>
             <label className="field">
@@ -600,7 +746,7 @@ export default function NewProjectDialog({
           )}
         </div>
         <footer className="modal-actions">
-          <button type="button" onClick={onClose}>
+          <button type="button" disabled={busy} onClick={close}>
             Cancelar
           </button>
           <button

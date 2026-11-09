@@ -2,9 +2,9 @@
 
 O comando **Novo projeto**, na barra de acesso rápido ou na faixa **Arquivo**, abre o mesmo assistente. Ele prepara a estrutura do arquivo antes do desenho. Não gera geometria, armaduras ou quantitativos.
 
-## Criar apenas com o nome
+## Criar com nome e pasta
 
-Informe **Nome do projeto** e clique em **Criar projeto**. O responsável é opcional. A estrutura mínima aparece no resumo: **Térreo → Vigas → V1**, além de uma **Folha 1** vazia, sem vistas colocadas. Os três níveis são pavimento, grupo de elementos e detalhamento. São renomeáveis; um único pavimento pode representar todo o projeto quando não houver subdivisão por andares. [Exemplos e navegação](ORGANIZACAO-PROJETO.md).
+Informe **Nome do projeto**, use **Escolher pasta** e confira o caminho do arquivo principal antes de **Criar projeto**. Em navegadores sem escrita de diretório, o assistente indica o modo compatível com recuperação local e download. [Contrato da pasta, salvamento e recuperação de acesso](PASTA-PROJETO.md). O responsável é opcional. A estrutura mínima aparece no resumo: **Térreo → Vigas → V1**, além de uma **Folha 1** vazia, sem vistas colocadas. Os três níveis são pavimento, grupo de elementos e detalhamento. São renomeáveis; um único pavimento pode representar todo o projeto quando não houver subdivisão por andares. [Exemplos e navegação](ORGANIZACAO-PROJETO.md).
 
 Se houver um projeto em uso, confira o aviso e marque **Confirmar substituição do projeto atual**. **Salvar cópia do projeto atual** permite guardar um arquivo independente antes de criar. A criação é uma única operação do histórico: **Desfazer** recupera o projeto anterior; a recuperação automática passa a guardar o novo projeto. Pontos e comandos ainda não confirmados são cancelados ao criar e não fazem parte da cópia salva; o aviso informa essa condição.
 
@@ -27,7 +27,7 @@ Nomes de pavimentos, elementos, detalhamentos e desenhos têm de 1 a 100 caracte
 
 ## Rascunho, teclado e continuidade
 
-Até confirmar **Criar projeto**, nenhuma alteração entra no projeto aberto, no histórico ou na recuperação automática. **Cancelar**, **Esc**, o **×** e o clique fora da janela descartam o rascunho. Reabrir começa com novos padrões, sem resíduos. Se o projeto aberto mudar por outro fluxo enquanto o assistente estiver aberto, a criação é bloqueada e é necessário reabrir a janela.
+Enquanto a gravação inicial está em andamento, aguarde o resultado antes de fechar; os campos e a confirmação ficam bloqueados. Antes de confirmar **Criar projeto**, nenhuma alteração entra no projeto aberto, no histórico ou na recuperação automática. **Cancelar**, **Esc**, o **×** e o clique fora da janela descartam o rascunho. Reabrir começa com novos padrões, sem resíduos. Se o projeto aberto mudar por outro fluxo enquanto o assistente estiver aberto, a criação é bloqueada e é necessário reabrir a janela.
 
 O foco começa no nome. **Tab/Shift+Tab** percorrem os controles dentro da janela; **Esc** fecha sem cancelar um comando CAD pendente no projeto original. **Enter** nos nomes da árvore não cria o projeto acidentalmente. A área central rola em janelas menores e mantém as ações finais acessíveis.
 

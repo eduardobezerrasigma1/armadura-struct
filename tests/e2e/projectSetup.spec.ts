@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs';
 import { emptyProject, newBar, schedule } from '../../src/domain/model';
 import { completeOwnership } from '../../src/domain/hierarchy';
 import type { Project } from '../../src/domain/types';
-import { confirmProjectReplacement } from './projectSetup.helpers';
+import {
+  confirmProjectReplacement,
+  useCompatibleProjectFolders,
+} from './projectSetup.helpers';
 const dialog = (p: Page) =>
   p.getByRole('dialog', { name: 'Novo projeto', exact: true });
 async function load(page: Page, p: Project) {
@@ -439,3 +442,5 @@ test('uma troca concorrente de projeto invalida a confirmação sem aplicar o ra
   await page.keyboard.press('Escape');
   expect(await save(page)).toEqual(other);
 });
+
+useCompatibleProjectFolders();

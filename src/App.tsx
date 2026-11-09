@@ -1,3 +1,15 @@
+import { isTauri } from '@tauri-apps/api/core';
+import {
+  folderHint,
+  folderAvailable,
+  hasPendingFolderWrites,
+  inheritProjectFolder,
+  projectFolderLabel,
+  saveProjectFolder,
+  createProjectInFolder,
+  attachProjectFolder,
+  pickProjectFolder,
+} from './lib/projectFolder';
 import MeasureDimensionPanel, {
   type MeasureSession,
 } from './components/MeasureDimensionPanel';
@@ -629,7 +641,47 @@ export default function App() {
     [message, setMessage] = useState('Pronto para detalhar.'),
     [toast, setToast] = useState(''),
     [busy, setBusy] = useState(''),
-    [saveState, setSaveState] = useState('Salvo neste computador');
+    [saveState, setSaveState] = useState('Verificando recuperação local…');
+  const [folderEpoch, setFolderEpoch] = useState(0);
+  useEffect(() => {
+    if (!isTauri()) return;
+    let disposed = false,
+      unlisten: (() => void) | undefined;
+    void import('@tauri-apps/api/window')
+      .then(async ({ getCurrentWindow }) => {
+        const stop = await getCurrentWindow().onCloseRequested((e) => {
+          if (hasPendingFolderWrites()) {
+            e.preventDefault();
+            notify(
+              'Gravação em andamento. Aguarde o resultado antes de fechar.',
+            );
+          }
+        });
+        if (disposed) stop();
+        else unlisten = stop;
+      })
+      .catch(() => {});
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    const focus = () => setFolderEpoch((n) => n + 1);
+    const leaving = (e: BeforeUnloadEvent) => {
+      if (hasPendingFolderWrites()) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('focus', focus);
+    window.addEventListener('beforeunload', leaving);
+    return () => {
+      window.removeEventListener('focus', focus);
+      window.removeEventListener('beforeunload', leaving);
+    };
+  }, []);
   const [modal, setModal] = useState<'new' | 'help' | 'split' | 'group' | null>(
       null,
     ),
@@ -972,19 +1024,39 @@ export default function App() {
   }, []);
   useEffect(() => {
     if (!ready || recoveryBlocked.current === p.id) return;
-    setSaveState('Salvando…');
-    const timer = setTimeout(() => {
-      autosave(p)
-        .then(() => setSaveState('Salvo neste computador'))
-        .catch(() => {
-          setSaveState('Falha no salvamento local');
-          notify(
-            'O armazenamento local está indisponível. Use Salvar projeto para guardar uma cópia.',
-          );
-        });
+    let alive = true;
+    setSaveState('Gravando recuperação…');
+    const timer = setTimeout(async () => {
+      // Enqueue the disk snapshot before awaiting recovery. A late IndexedDB operation
+      // must never enqueue an older snapshot after a newer manual save.
+      const disk = projectFolderLabel(p) ? saveProjectFolder(p) : undefined;
+      if (disk && alive) setSaveState('Gravando na pasta…');
+      const [local, file] = await Promise.allSettled([autosave(p), disk]);
+      if (!alive) return;
+      if (disk && file.status === 'rejected') {
+        setSaveState('Acesso perdido/falha na pasta — alterações em memória');
+        notify(
+          String(file.reason) +
+            ' Use Localizar/associar pasta, tentar Salvar ou salvar cópia.',
+        );
+      } else if (disk)
+        setSaveState(
+          local.status === 'fulfilled'
+            ? 'Salvo na pasta do projeto'
+            : 'Salvo na pasta; falha na recuperação local',
+        );
+      else
+        setSaveState(
+          local.status === 'fulfilled'
+            ? 'Apenas recuperável localmente'
+            : 'Falha na recuperação; salve cópia',
+        );
     }, 500);
-    return () => clearTimeout(timer);
-  }, [p, ready]);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [p, ready, folderEpoch]);
   const commit = useCallback(
     (change: (current: Project) => Project) => {
       try {
@@ -1004,6 +1076,7 @@ export default function App() {
             ? activeDetailId
             : next.hierarchy.details[0].id);
         const complete = completeOwnership(next, target);
+        inheritProjectFolder(h.present, next, complete);
         if (
           next.id === h.present.id &&
           (next.bars !== h.present.bars ||
@@ -4680,6 +4753,22 @@ export default function App() {
         else if (file) await onProjectFile(file);
       }
       if (a === 'save') {
+        if (projectFolderLabel(p)) {
+          setSaveState('Gravando na pasta…');
+          try {
+            await saveProjectFolder(p);
+            if (historyRef.current.present !== p) return;
+            setSaveState('Salvo na pasta do projeto');
+            notify('Arquivo nativo salvo na pasta vinculada.');
+          } catch (e) {
+            if (historyRef.current.present === p)
+              setSaveState(
+                'Acesso perdido/falha na pasta — alterações em memória',
+              );
+            throw e;
+          }
+          return;
+        }
         const saved = await saveFile(
           `${safeName(p.name)}.armstruct.json`,
           JSON.stringify(p, null, 2),
@@ -4687,7 +4776,9 @@ export default function App() {
           'json',
         );
         if (saved)
-          notify('Projeto salvo com armaduras, rebatimentos e máscaras.');
+          notify(
+            'Cópia/download solicitado. Confira o arquivo; recuperação local não confirma gravação no disco.',
+          );
       }
       if (a === 'delete') {
         if (
@@ -4966,7 +5057,7 @@ export default function App() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (modal === 'new') {
-        if (e.key === 'Escape') setModal(null);
+        if (e.key === 'Escape' && !hasPendingFolderWrites()) setModal(null);
         if (
           (e.ctrlKey || e.metaKey) &&
           ['s', 'o'].includes(e.key.toLowerCase())
@@ -6460,6 +6551,64 @@ export default function App() {
           </aside>
         )}
       </div>
+      <div className="folder-actions" aria-label="Arquivos do projeto">
+        <button
+          disabled={!folderAvailable()}
+          onClick={async () => {
+            try {
+              const base = historyRef.current.present,
+                folder = await pickProjectFolder();
+              if (!folder || historyRef.current.present !== base) return;
+              const raw = await folder.read();
+              if (historyRef.current.present !== base) return;
+              if (raw !== undefined) {
+                if (
+                  decodeProject(raw).id !== base.id ||
+                  JSON.stringify(decodeProject(raw)) !== JSON.stringify(base)
+                )
+                  throw Error(
+                    'Arquivo diferente: abra o existente pelo Novo projeto ou escolha outra pasta.',
+                  );
+                attachProjectFolder(base, folder, raw);
+              } else await createProjectInFolder(base, folder);
+              if (historyRef.current.present !== base) return;
+              setFolderEpoch((n) => n + 1);
+              setSaveState('Salvo na pasta do projeto');
+              notify('Pasta vinculada nesta sessão: ' + folder.label);
+            } catch (e) {
+              notify(String(e));
+            }
+          }}
+        >
+          Localizar/associar pasta
+        </button>
+        <button
+          onClick={async () => {
+            try {
+              await saveFile(
+                `${safeName(p.name)}.armstruct.json`,
+                JSON.stringify(p, null, 2),
+                'application/json',
+                'json',
+              );
+              notify(
+                'Cópia solicitada; destino principal preservado. Confira o arquivo.',
+              );
+            } catch (e) {
+              notify(String(e));
+            }
+          }}
+        >
+          Salvar cópia independente
+        </button>
+        <span>
+          {projectFolderLabel(p)
+            ? 'Pasta: ' + projectFolderLabel(p)
+            : folderHint(p)
+              ? 'Local anterior (reautorize): ' + folderHint(p)
+              : 'Sem pasta autorizada nesta sessão'}
+        </span>
+      </div>
       <footer className="statusbar">
         <span
           className="active-detail-path"
@@ -6964,7 +7113,26 @@ export default function App() {
                 'json',
               );
             }}
-            onCreate={(draft, base) => {
+            onOpenExisting={async (raw, folder, base) => {
+              if (historyRef.current.present !== base) return false;
+              try {
+                if ((await folder.read()) !== raw)
+                  throw Error(
+                    'Arquivo mudou após a escolha. Selecione novamente a pasta para conferir.',
+                  );
+                if (historyRef.current.present !== base) return false;
+                const next = decodeProject(raw);
+                attachProjectFolder(next, folder, raw);
+                if (!commit(() => next)) return false;
+                setModal(null);
+                setTool('select');
+                return true;
+              } catch (e) {
+                notify(String(e));
+                return false;
+              }
+            }}
+            onCreate={async (draft, base, folder) => {
               if (historyRef.current.present !== base) {
                 notify(
                   'O projeto aberto mudou. Reabra o assistente para criar.',
@@ -6975,6 +7143,12 @@ export default function App() {
               if (!result.ok) {
                 notify(result.issues.map((i) => i.message).join(' '));
                 return false;
+              }
+              if (folder) await createProjectInFolder(result.project, folder);
+              if (historyRef.current.present !== base) {
+                throw new Error(
+                  'Projeto de origem mudou durante a gravação. Arquivo inicial produzido na pasta escolhida; abra-o explicitamente.',
+                );
               }
               if (!commit(() => result.project)) return false;
               setContext({

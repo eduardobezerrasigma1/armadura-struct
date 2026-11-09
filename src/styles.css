@@ -3968,3 +3968,19 @@ button.hierarchy-drawing {
   background: var(--panel);
   font-size: 11px;
 }
+
+.folder-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  padding: 3px 8px;
+  overflow: auto;
+  flex-shrink: 0;
+}
+.folder-actions button {
+  white-space: nowrap;
+}
+.folder-actions span {
+  overflow-wrap: anywhere;
+}

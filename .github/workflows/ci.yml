@@ -27,6 +27,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
+          name: project-folder-evidence
+          if-no-files-found: ignore
+          path: docs/project-folder-*.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
           name: mask-dimensions-evidence
           if-no-files-found: ignore
           path: docs/mask-dimensions-*.png
@@ -91,6 +97,7 @@ jobs:
         with:
           workspaces: src-tauri -> target
       - run: npm ci
+      - run: cargo test --manifest-path src-tauri/Cargo.toml project_folder::tests
       - run: npm run desktop:build -- --bundles ${{ matrix.bundles }}
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'

@@ -1,6 +1,8 @@
 # Histórico de versões
 
-## Em desenvolvimento · 2026-11-08
+## Em desenvolvimento · 2026-11-09
+
+- Novo projeto: escolha explícita de pasta, arquivo nativo inicial validado antes da troca, vínculo local, filas de salvamento/recuperação, conflitos e retomada segura. Desktop com acesso restrito ao diretório selecionado; web com File System Access ou modo compatível identificado. Exportadores preservam seus diálogos. [Contrato e uso](docs/PASTA-PROJETO.md).
 
 - Máscaras → Ferramentas: Medir distância e Inserir cota ortogonal/alinhada usam os comandos existentes de Desenho. Consulta com prévia, ΔX/ΔY, unidades e precisão; cota estática com verificação da referência e aviso em canvas/PDF/DXF após alteração/perda. Projeto `armadurastruct/24` e pacote `openstruct.detail/15`, com migração compatível. [Uso e limites](docs/MASCARAS-MEDIR-COTAR.md).
 - Máscaras → Manipular → Espelhar: seleção compartilhada, dois pontos do eixo com prévia infinita e confirmação de manter/substituir originais, com histórico atômico. Preserva raio/arco, texto legível, IDs/vínculos na substituição e aço/RA/CSV. [Uso e limites](docs/MASCARAS-ESPELHAR.md).

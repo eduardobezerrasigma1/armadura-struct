@@ -1,3 +1,4 @@
+import { useCompatibleProjectFolders } from './projectSetup.helpers';
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { emptyProject, newBar } from '../../src/domain/model';
@@ -233,3 +234,5 @@ test('novo projeto mostra exemplos legíveis em janela compacta e Esc descarta o
     expect(await save(page)).toEqual(p);
   }
 });
+
+useCompatibleProjectFolders();

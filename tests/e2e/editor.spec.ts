@@ -1,5 +1,8 @@
 import { confirmMaskImport } from './maskBatch.helpers';
-import { confirmProjectReplacement } from './projectSetup.helpers';
+import {
+  confirmProjectReplacement,
+  useCompatibleProjectFolders,
+} from './projectSetup.helpers';
 import { seedLegacyDemo } from './seedLegacyDemo';
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
@@ -27,7 +30,10 @@ test('CAD completo: desenhar, quantificar, rebater, distribuir, desfazer e reabr
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.getByRole('button', { name: 'Novo projeto', exact: true }).click();
-  await page.getByRole('dialog').getByRole('textbox').fill('Teste da viga');
+  await page
+    .getByRole('dialog')
+    .getByLabel('Nome do projeto', { exact: true })
+    .fill('Teste da viga');
   await confirmProjectReplacement(page);
   await page.getByRole('button', { name: 'Criar projeto' }).click();
   await command(page, 'B');
@@ -205,3 +211,5 @@ test('seguir fôrma acumula o contorno, escolhe lado e confirma cobrimento com E
   expect(Math.max(...xs) - Math.min(...xs)).toBe(4932);
   expect(Math.max(...ys) - Math.min(...ys)).toBe(532);
 });
+
+useCompatibleProjectFolders();

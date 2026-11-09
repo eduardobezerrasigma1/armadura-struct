@@ -1,4 +1,7 @@
-import { confirmProjectReplacement } from './projectSetup.helpers';
+import {
+  confirmProjectReplacement,
+  useCompatibleProjectFolders,
+} from './projectSetup.helpers';
 import { seedLegacyDemo } from './seedLegacyDemo';
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
@@ -205,3 +208,5 @@ test('moving selected content preserves geometry and protected deletion leaves t
   expect(moved.hierarchy).toEqual(before.hierarchy);
   expect(moved.bars).toEqual(before.bars);
 });
+
+useCompatibleProjectFolders();

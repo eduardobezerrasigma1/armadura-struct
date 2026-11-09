@@ -1,4 +1,7 @@
-import { confirmProjectReplacement } from './projectSetup.helpers';
+import {
+  confirmProjectReplacement,
+  useCompatibleProjectFolders,
+} from './projectSetup.helpers';
 import { seedLegacyDemo } from './seedLegacyDemo';
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
@@ -265,3 +268,5 @@ test('repetição de estribos e faixa calculam quantidade pelo espaçamento máx
     .click();
   await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(1);
 });
+
+useCompatibleProjectFolders();
