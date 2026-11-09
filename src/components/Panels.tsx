@@ -237,7 +237,7 @@ export function Inspector({
               <div>
                 <b>
                   {bar.kind === 'stirrup'
-                    ? 'Estribo retangular'
+                    ? `Estribo ${bar.stirrupProfile?.shape === 'circle' ? 'circular' : bar.stirrupProfile?.shape === 'free' ? 'livre' : 'retangular'}`
                     : 'Barra livre'}
                 </b>
                 <small>{bar.element}</small>

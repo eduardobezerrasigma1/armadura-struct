@@ -186,6 +186,9 @@ test('circular analítico, edição explícita e forma livre com teclado em jane
   expect(p.bars).toHaveLength(1);
   expect(p.bars[0].quantity).toBe(4);
   expect(p.bars[0].stirrupProfile.shape).toBe('circle');
+  await expect(page.locator('.object-heading')).toContainText(
+    'Estribo circular',
+  );
   await page
     .getByRole('button', { name: 'Editar critérios desta posição' })
     .click();
@@ -213,6 +216,7 @@ test('circular analítico, edição explícita e forma livre com teclado em jane
   expect(p.bars).toHaveLength(2);
   expect(p.bars[0]).toEqual(edited.bars[0]);
   expect(p.bars[1].stirrupProfile.shape).toBe('free');
+  await expect(page.locator('.object-heading')).toContainText('Estribo livre');
   expect(p.bars[1].stirrupProfile.points).toHaveLength(4);
   expect(p.bars[1].rotation).toBe(90);
   expect(p.bars[1].stirrupProfile.points[1].x).toBeCloseTo(0);
