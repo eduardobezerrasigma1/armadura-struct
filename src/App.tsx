@@ -1,4 +1,16 @@
-import { maskPoint } from './cad/import';
+import MaskManipPanel, {
+  type MaskManipSession,
+} from './components/MaskManipPanel';
+import {
+  maskManipNames,
+  maskManipSelection,
+  previewMaskManipulation,
+  applyMaskManipulation,
+  type MaskManipMode,
+  type MaskManipPlan,
+  type MaskCopyTransform,
+} from './domain/maskManipulation';
+import { maskPoint, maskPrimitives } from './cad/import';
 import MaskCadPanel, { type MaskCadSession } from './components/MaskCadPanel';
 import {
   maskCadEntities,
@@ -371,6 +383,13 @@ export default function App() {
   const [vertexRequest, setVertexRequest] = useState<VertexSession | null>(
     null,
   );
+  const [maskManip, setMaskManip] = useState<MaskManipSession | null>(null);
+  const manipConsumed = useRef(false);
+  const lastManipCopy = useRef<{
+    project: Project;
+    at: Point;
+    time: number;
+  } | null>(null);
   const [maskCad, setMaskCad] = useState<MaskCadSession | null>(null);
   const lastMaskCadClick = useRef<{
     project: Project;
@@ -1000,6 +1019,7 @@ export default function App() {
     if (ids.length) setSidebarTab('properties');
   };
   const setTool = (t: Tool) => {
+    setMaskManip(null);
     setMaskCad(null);
     setMaskCalibration(null);
     nativeSession.current = null;
@@ -1845,6 +1865,274 @@ export default function App() {
     setDraft([]);
     return true;
   };
+  const manipEntities = useMemo(
+    () => (maskManip ? maskCadEntities(p, maskDrawingContext) : []),
+    [p, documentKey, isolatedDetailId, !!maskManip],
+  );
+  const endMaskManip = () => {
+    setMaskManip(null);
+    setToolRaw('select');
+    setDraft([]);
+  };
+  const startMaskManip = (
+    mode: MaskManipMode,
+    id = drawingMaskId,
+    entityId?: string,
+  ) => {
+    try {
+      const base = historyRef.current.present;
+      const mask = maskEditTarget(base, id, maskDrawingContext);
+      const preId = entityId ?? (maskId === id ? nativeEntity : undefined);
+      const pre = preId
+        ? maskCadEntities(base, maskDrawingContext).find(
+            (e) => e.mask.id === id && e.ref.id === preId,
+          )
+        : undefined;
+      if (preId && !pre)
+        throw new Error(
+          'Pré-seleção inválida. Selecione novamente a entidade.',
+        );
+      if (pre) maskManipSelection(base, mask.id, [pre.ref], maskDrawingContext);
+      const ignored = selected.length;
+      setTool('select');
+      setMaskControl(false);
+      setTab('Máscaras');
+      setPage('drawing');
+      setSelectedRaw([]);
+      setMaskId(mask.id);
+      setNativeEntity(undefined);
+      setDrawingMaskChoice({ projectId: base.id, id: mask.id });
+      manipConsumed.current = false;
+      lastManipCopy.current = null;
+      if (mode === 'erase' && pre) {
+        const next = applyMaskManipulation(
+          base,
+          previewMaskManipulation(
+            base,
+            mask.id,
+            [pre.ref],
+            mode,
+            maskDrawingContext,
+          ),
+          maskDrawingContext,
+        );
+        if (!commit(() => next))
+          throw new Error('Exclusão bloqueada. Confira contexto e layers.');
+        notify(
+          `Apagada 1 entidade de ${mask.name}. Máscara preservada; Desfazer disponível.${ignored ? ' Seleção residual de objetos ignorada; aço não participa.' : ''} Cotas estáticas exigem revisão.`,
+        );
+        return true;
+      }
+      setMaskManip({
+        project: base,
+        maskId: mask.id,
+        context: { ...maskDrawingContext },
+        mode,
+        stage: 'selection',
+        refs: pre ? [pre.ref] : [],
+        hadOperations: false,
+      });
+      notify(
+        `${maskManipNames[mode]}: selecione entidades da máscara ${mask.name} e pressione Enter.${ignored ? ' Seleção anterior de objetos ignorada; aço não participa.' : ''}`,
+      );
+      return true;
+    } catch (e) {
+      notify((e as Error).message);
+      return false;
+    }
+  };
+  const toggleManipEntity = (ref?: MaskEntityRef) => {
+    const s = maskManip;
+    if (!s || s.stage !== 'selection') return;
+    try {
+      if (!ref)
+        throw new Error(
+          'Clique numa entidade da máscara ativa; aço e outras máscaras não são alvos.',
+        );
+      maskManipSelection(
+        historyRef.current.present,
+        s.maskId,
+        [ref],
+        maskDrawingContext,
+      );
+      setMaskManip({
+        ...s,
+        refs: s.refs.some((r) => sameMaskEntity(r, ref))
+          ? s.refs.filter((r) => !sameMaskEntity(r, ref))
+          : [...s.refs, ref],
+        issue: undefined,
+      });
+    } catch (e) {
+      setMaskManip({ ...s, issue: (e as Error).message });
+    }
+  };
+  useEffect(() => {
+    const s = maskManip;
+    if (
+      s &&
+      (s.project !== p ||
+        s.context.key !== documentKey ||
+        s.context.detailId !== activeDetailId ||
+        s.context.scopeDetailId !== isolatedDetailId ||
+        s.maskId !== drawingMaskId ||
+        maskId !== s.maskId ||
+        tab !== 'Máscaras' ||
+        page !== 'drawing')
+    ) {
+      endMaskManip();
+      notify(
+        'Manipular cancelado: projeto, máscara ou contexto mudou. Operações confirmadas permanecem no histórico.',
+      );
+    }
+  }, [
+    p,
+    documentKey,
+    activeDetailId,
+    isolatedDetailId,
+    drawingMaskId,
+    maskId,
+    tab,
+    page,
+    maskManip,
+  ]);
+  const manipTransform = (
+    s: MaskManipSession,
+    at = s.cursor,
+  ): MaskCopyTransform | undefined =>
+    s.base && at ? { kind: 'translate', delta: sub(at, s.base) } : undefined;
+  const manipPreview = useMemo<{ plan?: MaskManipPlan; error?: string }>(() => {
+    if (!maskManip || maskManip.stage !== 'target') return {};
+    try {
+      const t = manipTransform(maskManip);
+      return t
+        ? {
+            plan: previewMaskManipulation(
+              maskManip.project,
+              maskManip.maskId,
+              maskManip.refs,
+              maskManip.mode,
+              maskManip.context,
+              t,
+            ),
+          }
+        : {};
+    } catch (e) {
+      return { error: (e as Error).message };
+    }
+  }, [maskManip]);
+  const manipLines = useMemo(
+    () =>
+      manipPreview.plan
+        ? maskPrimitives({
+            ...manipPreview.plan.mask,
+            primitives: manipPreview.plan.result,
+          })
+        : undefined,
+    [manipPreview.plan],
+  );
+  const manipOverlay = useMemo(
+    () =>
+      maskManip
+        ? {
+            mode: 'trim' as const,
+            limits: maskPrimitives({
+              ...maskManip.project.masks.find(
+                (m) => m.id === maskManip.maskId,
+              )!,
+              primitives: maskManip.refs.map((r) => r.primitive),
+            }),
+            change: [],
+          }
+        : undefined,
+    [maskManip?.project, maskManip?.maskId, maskManip?.refs],
+  );
+  const applyManip = (at?: Point) => {
+    const s = maskManip;
+    if (!s || manipConsumed.current) return;
+    try {
+      if (
+        s.project !== historyRef.current.present ||
+        s.context.key !== documentKey ||
+        s.context.scopeDetailId !== isolationRef.current ||
+        s.maskId !== drawingMaskId ||
+        maskId !== s.maskId
+      )
+        throw new Error('Contexto mudou. Reinicie Manipular.');
+      if (
+        at &&
+        s.mode === 'copy' &&
+        lastManipCopy.current?.project === s.project &&
+        Date.now() - lastManipCopy.current.time < 400 &&
+        distance(lastManipCopy.current.at, at) < 1e-6
+      )
+        return;
+      const plan = previewMaskManipulation(
+        s.project,
+        s.maskId,
+        s.refs,
+        s.mode,
+        maskDrawingContext,
+        manipTransform(s, at),
+      );
+      const next = applyMaskManipulation(s.project, plan, maskDrawingContext);
+      if (next === s.project) {
+        setMaskManip({
+          ...s,
+          issue: 'Operação neutra: nenhum objeto alterado.',
+        });
+        return;
+      }
+      manipConsumed.current = true;
+      if (!commit(() => next)) {
+        manipConsumed.current = false;
+        throw new Error('Operação bloqueada por contexto/layers.');
+      }
+      setNativeEntity(undefined);
+      setSelectedRaw([]);
+      if (s.mode === 'copy') {
+        const present = historyRef.current.present;
+        lastManipCopy.current = {
+          project: present,
+          at: at ?? s.cursor!,
+          time: Date.now(),
+        };
+        setMaskManip({
+          ...s,
+          project: present,
+          cursor: undefined,
+          issue: undefined,
+          hadOperations: true,
+        });
+        manipConsumed.current = false;
+      } else endMaskManip();
+      notify(
+        `${maskManipNames[s.mode]}: ${s.refs.length} entidade(s) na máscara ativa. Desfazer disponível. Cotas estáticas exigem revisão.`,
+      );
+    } catch (e) {
+      manipConsumed.current = false;
+      setMaskManip((v) => (v ? { ...v, issue: (e as Error).message } : v));
+      notify((e as Error).message);
+    }
+  };
+  const finishManip = () => {
+    const s = maskManip;
+    if (!s) return;
+    if (s.stage === 'selection') {
+      try {
+        maskManipSelection(s.project, s.maskId, s.refs, maskDrawingContext);
+        if (s.mode === 'erase') applyManip();
+        else setMaskManip({ ...s, stage: 'base', issue: undefined });
+      } catch (e) {
+        setMaskManip({ ...s, issue: (e as Error).message });
+      }
+    } else if (s.mode === 'copy' && s.stage === 'target') endMaskManip();
+    else
+      setMaskManip({
+        ...s,
+        issue:
+          'Escolha os pontos pedidos; Enter não aplica uma prévia pendente.',
+      });
+  };
   const cadMaskEntities = useMemo(
     () => (maskCad ? maskCadEntities(p, maskDrawingContext) : []),
     [p, documentKey, isolatedDetailId, !!maskCad],
@@ -2335,6 +2623,10 @@ export default function App() {
     }
   }, [nativeKind, nativeTarget]);
   const finish = () => {
+    if (maskManip) {
+      finishManip();
+      return;
+    }
     if (maskCad) {
       if (maskCad.stage === 'limits') confirmMaskCadLimits();
       else endMaskCad();
@@ -2385,6 +2677,28 @@ export default function App() {
     } else setDraft([]);
   };
   const onPoint = (point: Point) => {
+    if (maskManip) {
+      if (maskManip.stage === 'selection')
+        toggleManipEntity(
+          hitMaskCadEntity(
+            manipEntities,
+            point,
+            0.00001,
+            (e) => e.mask.id === maskManip.maskId,
+          )?.ref,
+        );
+      else if (maskManip.stage === 'base')
+        setMaskManip({
+          ...maskManip,
+          base: point,
+          stage: 'target',
+          cursor: undefined,
+          issue: undefined,
+        });
+      else applyManip(point);
+      return;
+    }
+
     if (maskCad) {
       const hit = hitMaskCadEntity(
         cadMaskEntities,
@@ -2929,6 +3243,36 @@ export default function App() {
     return true;
   };
   const action = async (a: Action) => {
+    const manipActions: Partial<Record<Action, MaskManipMode>> = {
+      'mask-copy': 'copy',
+      'mask-erase': 'erase',
+    };
+    if (manipActions[a]) {
+      startMaskManip(manipActions[a]!);
+      return;
+    }
+    if (maskManip && ['undo', 'redo'].includes(a)) {
+      const had = maskManip.hadOperations;
+      endMaskManip();
+      if (!had) {
+        notify('Seleção/prévia cancelada, sem alterar o projeto.');
+        return;
+      }
+    } else if (
+      maskManip &&
+      ![
+        'fit',
+        'grid',
+        'snap',
+        'ortho',
+        'dimensions',
+        'sidebar',
+        'focus',
+        'save',
+      ].includes(a)
+    )
+      endMaskManip();
+
     if (a === 'mask-trim' || a === 'mask-extend') {
       startMaskCad(a === 'mask-trim' ? 'trim' : 'extend');
       return;
@@ -3734,6 +4078,10 @@ export default function App() {
       L: 'bar',
       MASCARAS: 'mask-control',
       CALIBRARMASCARA: 'mask-calibrate',
+      APAGARMASCARA: 'mask-erase',
+      ERASE: 'mask-erase',
+      COPIARMASCARA: 'mask-copy',
+      MCOPY: 'mask-copy',
       AJUSTAR: 'mask-trim',
       APARAR: 'mask-trim',
       TRIM: 'mask-trim',
@@ -3815,7 +4163,9 @@ export default function App() {
       const p = add(
         vertexRequest
           ? (vertexPreview.anchor ?? { x: 0, y: 0 })
-          : (maskCalibration?.points.at(-1) ?? draft.at(-1) ?? { x: 0, y: 0 }),
+          : (maskManip?.base ??
+              maskCalibration?.points.at(-1) ??
+              draft.at(-1) ?? { x: 0, y: 0 }),
         rotate({ x: Number(polar[1]), y: 0 }, Number(polar[2])),
       );
       onPoint(p);
@@ -3828,7 +4178,9 @@ export default function App() {
       const base = xy[1]
         ? ((vertexRequest
             ? vertexPreview.anchor
-            : (maskCalibration?.points.at(-1) ?? draft.at(-1))) ?? {
+            : (maskManip?.base ??
+              maskCalibration?.points.at(-1) ??
+              draft.at(-1))) ?? {
             x: 0,
             y: 0,
           })
@@ -3882,6 +4234,11 @@ export default function App() {
         'input,textarea,select',
       );
       if (e.key === 'Escape') {
+        if (maskManip) {
+          endMaskManip();
+          cmdInput.current?.blur();
+          return;
+        }
         if (maskCad) {
           endMaskCad();
           cmdInput.current?.blur();
@@ -4119,6 +4476,8 @@ export default function App() {
           snap,
           ortho,
           dimensions,
+          'mask-copy': maskManip?.mode === 'copy',
+          'mask-erase': maskManip?.mode === 'erase',
           'mask-trim': maskCad?.mode === 'trim',
           'mask-extend': maskCad?.mode === 'extend',
           'mask-calibrate': !!maskCalibration,
@@ -4133,6 +4492,7 @@ export default function App() {
         groupSelected={groupSelection}
         maskDestination={
           <MaskDestination
+            onManipulate={(mode) => startMaskManip(mode)}
             onCadEdit={(mode) => startMaskCad(mode)}
             onCalibrate={() => startMaskCalibration()}
             onBatch={(mode) => startMaskBatch(mode)}
@@ -4547,17 +4907,25 @@ export default function App() {
                     : undefined
                 }
                 maskEditing={
-                  maskCad
+                  maskManip?.stage === 'selection'
                     ? {
-                        entities: cadMaskEntities,
-                        targetMaskId: maskCad.maskId,
-                        all: maskCad.all,
-                        stage: maskCad.stage,
-                        selectedTarget: maskCad.selectedTarget,
+                        entities: manipEntities,
+                        targetMaskId: maskManip.maskId,
+                        stage: 'targets',
                       }
-                    : undefined
+                    : maskCad
+                      ? {
+                          entities: cadMaskEntities,
+                          targetMaskId: maskCad.maskId,
+                          all: maskCad.all,
+                          stage: maskCad.stage,
+                          selectedTarget: maskCad.selectedTarget,
+                        }
+                      : undefined
                 }
-                onMaskEntityPick={pickMaskCad}
+                onMaskEntityPick={
+                  maskManip ? (ref) => toggleManipEntity(ref) : pickMaskCad
+                }
                 onMaskEntityHover={(ref, at) =>
                   setMaskCad((s) =>
                     s
@@ -4569,8 +4937,12 @@ export default function App() {
                       : s,
                   )
                 }
-                maskCadOverlay={maskCadOverlay}
-                highlightedMaskId={maskCad?.maskId ?? maskCalibration?.mask.id}
+                maskCadOverlay={manipOverlay ?? maskCadOverlay}
+                highlightedMaskId={
+                  maskManip?.maskId ??
+                  maskCad?.maskId ??
+                  maskCalibration?.mask.id
+                }
                 onFollowEdge={pickFollowEdge}
                 nativeDrawing={!!nativeKind}
                 onNativePick={(maskId, entityId) => {
@@ -4587,6 +4959,7 @@ export default function App() {
                   setMaskControl(true);
                 }}
                 previewLines={
+                  manipLines ??
                   calibrationLines ??
                   nativePreview ??
                   (vertexRequest
@@ -4613,9 +4986,12 @@ export default function App() {
                         ],
                         vertexPreview.previewBar,
                       )
-                    : (maskCalibration?.points[0] ?? transformRequest?.base)
+                    : (maskManip?.base ??
+                      maskCalibration?.points[0] ??
+                      transformRequest?.base)
                 }
                 commandActive={
+                  !!maskManip ||
                   !!maskCad ||
                   !!maskCalibration ||
                   !!transformRequest ||
@@ -4635,6 +5011,7 @@ export default function App() {
                 isolatedDetailId={isolatedDetailId}
                 onEditDetail={beginDetailEdit}
                 tool={
+                  maskManip ||
                   maskCad ||
                   maskCalibration ||
                   transformRequest ||
@@ -4650,13 +5027,15 @@ export default function App() {
                 onFinish={finish}
                 onBarChange={editBar}
                 draft={
-                  maskCalibration
-                    ? maskCalibration.points.length === 1
-                      ? maskCalibration.points
-                      : []
-                    : vertexRequest && vertexPreview.anchor
-                      ? [vertexPreview.anchor]
-                      : draft
+                  maskManip?.base
+                    ? [maskManip.base]
+                    : maskCalibration
+                      ? maskCalibration.points.length === 1
+                        ? maskCalibration.points
+                        : []
+                      : vertexRequest && vertexPreview.anchor
+                        ? [vertexPreview.anchor]
+                        : draft
                 }
                 grid={grid}
                 snap={snap}
@@ -4665,6 +5044,10 @@ export default function App() {
                 setTool={setTool}
                 onCursor={(point) => {
                   onCursor(point);
+                  if (maskManip?.stage === 'target')
+                    setMaskManip((s) =>
+                      s ? { ...s, cursor: point, issue: undefined } : s,
+                    );
                   if (nativeKind) setNativeCursor(point);
                   if (
                     vertexRequest &&
@@ -4683,6 +5066,16 @@ export default function App() {
                 }}
                 showDimensions={dimensions}
               />
+              {maskManip && (
+                <MaskManipPanel
+                  session={maskManip}
+                  entities={manipEntities}
+                  onToggle={toggleManipEntity}
+                  onConfirm={finishManip}
+                  onCancel={endMaskManip}
+                  error={manipPreview.error}
+                />
+              )}
               {maskCad && (
                 <MaskCadPanel
                   session={maskCad}
@@ -5529,6 +5922,7 @@ export default function App() {
           entity={nativeEntity}
           onActivate={activateDrawingMask}
           onOpenContext={openMaskContext}
+          onManipulate={startMaskManip}
           onCadEdit={startMaskCad}
           onCalibrate={startMaskCalibration}
           onBatch={(mode) => startMaskBatch(mode)}

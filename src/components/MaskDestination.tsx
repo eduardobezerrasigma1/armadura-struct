@@ -73,6 +73,7 @@ export default function MaskDestination({
   onBatch,
   onCalibrate,
   onCadEdit,
+  onManipulate,
 }: {
   project: Project;
   activeId?: string;
@@ -81,6 +82,7 @@ export default function MaskDestination({
   onCreate: () => void;
   onCalibrate: () => void;
   onCadEdit: (mode: 'trim' | 'extend') => void;
+  onManipulate: (mode: 'copy' | 'erase') => void;
   onBatch: (mode: 'import' | 'associate') => void;
 }) {
   const [candidate, setCandidate] = useState(activeId ?? '');
@@ -135,12 +137,17 @@ export default function MaskDestination({
         aria-label="Ferramentas CAD da máscara ativa"
         value=""
         onChange={(e) => {
-          if (e.target.value) onCadEdit(e.target.value as 'trim' | 'extend');
+          if (e.target.value === 'copy' || e.target.value === 'erase')
+            onManipulate(e.target.value);
+          else if (e.target.value)
+            onCadEdit(e.target.value as 'trim' | 'extend');
         }}
       >
         <option value="">Ferramentas CAD…</option>
         <option value="trim">Ajustar — Aparar / Trim</option>
         <option value="extend">Estender — Extend</option>
+        <option value="copy">Copiar entidades</option>
+        <option value="erase">Apagar entidades</option>
       </select>
       <div
         className={`mask-destination-status ${state.editable ? 'editable' : 'protected'}`}

@@ -3929,3 +3929,19 @@ button.hierarchy-drawing {
   width: 100%;
   min-width: 0;
 }
+
+.mask-manip-list {
+  max-height: 140px;
+  overflow: auto;
+  display: grid;
+  gap: 4px;
+}
+.mask-manip-list label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.mask-manip-list input {
+  width: auto;
+}

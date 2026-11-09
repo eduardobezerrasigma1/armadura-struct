@@ -28,6 +28,7 @@ export default function MaskControl({
   onBatch,
   onCalibrate,
   onCadEdit,
+  onManipulate,
   onClose,
 }: {
   project: Project;
@@ -46,6 +47,11 @@ export default function MaskControl({
   onCalibrate: (id: string) => boolean;
   onCadEdit: (
     mode: 'trim' | 'extend',
+    id: string,
+    entityId?: string,
+  ) => boolean;
+  onManipulate: (
+    mode: 'copy' | 'erase',
     id: string,
     entityId?: string,
   ) => boolean;
@@ -188,6 +194,19 @@ export default function MaskControl({
             </p>
           )}
           <div className="batch-actions">
+            {(['copy', 'erase'] as const).map((mode) => (
+              <button
+                key={mode}
+                disabled={!ready}
+                onClick={() => {
+                  if (onManipulate(mode, m.id, eid || undefined)) onClose();
+                }}
+              >
+                {mode === 'copy'
+                  ? 'Usar esta máscara e Copiar entidades'
+                  : 'Usar esta máscara e Apagar entidades'}
+              </button>
+            ))}
             {(['trim', 'extend'] as const).map((mode) => (
               <button
                 key={mode}
@@ -353,7 +372,9 @@ export default function MaskControl({
           <p>
             {m.format !== 'NATIVE'
               ? `${m.primitives.filter((q) => !q.native).length} entidades normalizadas de referência. Ajustar/Estender editam a cópia local; o arquivo CAD original é preservado.`
-              : 'Entidades nativas editáveis.'}
+              : 'Entidades nativas editáveis.'}{' '}
+            Cotas têm pontos estáticos: revise-as após copiar/apagar a
+            referência. Armaduras permanecem independentes.
           </p>
           <fieldset
             disabled={!ready || !drawState.editable}
@@ -586,58 +607,61 @@ export default function MaskControl({
                         <button
                           key={label}
                           onClick={() =>
-                            run(() => {
-                              if (
-                                !e.native ||
-                                ![dx, dy, angle].every(Number.isFinite)
-                              )
-                                throw new Error('Transformação inválida.');
-                              const t = (angle * Math.PI) / 180;
-                              const tr = (p: { x: number; y: number }) => ({
-                                x:
-                                  p.x * Math.cos(t) -
-                                  p.y * Math.sin(t) +
-                                  dx / m.scale,
-                                y:
-                                  p.x * Math.sin(t) +
-                                  p.y * Math.cos(t) +
-                                  dy / m.scale,
-                              });
-                              const s: NativeShape =
-                                e.native.kind === 'circle' ||
-                                e.native.kind === 'arc'
-                                  ? {
-                                      ...e.native,
-                                      center: tr(e.native.center),
-                                      ...(e.native.kind === 'arc'
-                                        ? {
-                                            startAngle:
-                                              (((e.native.startAngle + angle) %
-                                                360) +
-                                                360) %
-                                              360,
-                                          }
-                                        : {}),
-                                    }
-                                  : {
-                                      kind: 'polyline',
-                                      points: e.points.map(tr),
-                                      closed: !!e.closed,
-                                    };
-                              const next = nativePrimitive(
-                                s,
-                                i ? undefined : e.id,
-                                e.layer,
-                              );
-                              change({
-                                ...m,
-                                primitives: i
-                                  ? [...m.primitives, { ...e, ...next }]
-                                  : m.primitives.map((p) =>
-                                      p.id === eid ? { ...p, ...next } : p,
-                                    ),
-                              });
-                            })
+                            i
+                              ? onManipulate('copy', m.id, eid) && onClose()
+                              : run(() => {
+                                  if (
+                                    !e.native ||
+                                    ![dx, dy, angle].every(Number.isFinite)
+                                  )
+                                    throw new Error('Transformação inválida.');
+                                  const t = (angle * Math.PI) / 180;
+                                  const tr = (p: { x: number; y: number }) => ({
+                                    x:
+                                      p.x * Math.cos(t) -
+                                      p.y * Math.sin(t) +
+                                      dx / m.scale,
+                                    y:
+                                      p.x * Math.sin(t) +
+                                      p.y * Math.cos(t) +
+                                      dy / m.scale,
+                                  });
+                                  const s: NativeShape =
+                                    e.native.kind === 'circle' ||
+                                    e.native.kind === 'arc'
+                                      ? {
+                                          ...e.native,
+                                          center: tr(e.native.center),
+                                          ...(e.native.kind === 'arc'
+                                            ? {
+                                                startAngle:
+                                                  (((e.native.startAngle +
+                                                    angle) %
+                                                    360) +
+                                                    360) %
+                                                  360,
+                                              }
+                                            : {}),
+                                        }
+                                      : {
+                                          kind: 'polyline',
+                                          points: e.points.map(tr),
+                                          closed: !!e.closed,
+                                        };
+                                  const next = nativePrimitive(
+                                    s,
+                                    i ? undefined : e.id,
+                                    e.layer,
+                                  );
+                                  change({
+                                    ...m,
+                                    primitives: i
+                                      ? [...m.primitives, { ...e, ...next }]
+                                      : m.primitives.map((p) =>
+                                          p.id === eid ? { ...p, ...next } : p,
+                                        ),
+                                  });
+                                })
                           }
                         >
                           {label}
@@ -646,11 +670,7 @@ export default function MaskControl({
                     )}
                     <button
                       onClick={() => {
-                        change({
-                          ...m,
-                          primitives: m.primitives.filter((p) => p.id !== eid),
-                        });
-                        setEid('');
+                        if (onManipulate('erase', m.id, eid)) onClose();
                       }}
                     >
                       Excluir entidade

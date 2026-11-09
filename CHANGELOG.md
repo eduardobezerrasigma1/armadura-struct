@@ -2,6 +2,7 @@
 
 ## Em desenvolvimento · 2026-11-08
 
+- Máscaras → Manipular: Copiar e Apagar com seleção acumulada, pré-seleção, ponto base e destinos sucessivos, prévia cancelável, IDs independentes e transações atômicas. Preserva máscara vazia, aço, RA/CSV e cotas estáticas com orientação explícita. [Uso e contratos](docs/MASCARAS-COPIAR-APAGAR.md).
 - Máscaras: Ajustar (Aparar / Trim) e Estender (Extend), com limites finitos, prévia, seleção por clique/ID, operações sucessivas e histórico por corte/prolongamento. Referências de outras máscaras podem limitar; somente o alvo editável é alterado, sem aço adicional.
 - Arcos analíticos para remanescentes de círculos e prolongamentos circulares, IDs/linhagem dos fragmentos e edição local de referências importadas. Projeto `armadurastruct/23` (migração 1–22) e pacote `openstruct.detail/14` (leitura 1–13). [Uso e validação](docs/MASCARAS-AJUSTAR-ESTENDER.md).
 

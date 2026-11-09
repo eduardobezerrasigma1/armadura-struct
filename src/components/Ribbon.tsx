@@ -49,6 +49,11 @@ export type Action =
   | 'mask-calibrate'
   | 'mask-trim'
   | 'mask-extend'
+  | 'mask-copy'
+  | 'mask-erase'
+  | 'mask-move'
+  | 'mask-mirror'
+  | 'mask-rotate'
   | 'associate-masks'
   | 'mask-line'
   | 'mask-rectangle'
@@ -112,6 +117,7 @@ type Item = {
   caption?: string;
   icon: LucideIcon;
   selection?: number;
+  disabled?: boolean;
 };
 const item = (
   action: Action,
@@ -209,6 +215,38 @@ export default function Ribbon({
             caption: 'Estender',
           },
           item('measure', 'Medir', Ruler),
+        ],
+      },
+      {
+        name: 'Manipular',
+        items: [
+          {
+            ...item('mask-move', 'Mover entidades da máscara', Move),
+            disabled: true,
+            caption: 'Mover',
+          },
+          {
+            ...item(
+              'mask-mirror',
+              'Espelhar entidades da máscara',
+              FlipHorizontal2,
+            ),
+            disabled: true,
+            caption: 'Espelhar',
+          },
+          {
+            ...item('mask-rotate', 'Rotacionar entidades da máscara', RotateCw),
+            disabled: true,
+            caption: 'Rotacionar',
+          },
+          {
+            ...item('mask-copy', 'Copiar entidades da máscara', Copy),
+            caption: 'Copiar',
+          },
+          {
+            ...item('mask-erase', 'Apagar entidades da máscara', Trash2),
+            caption: 'Apagar',
+          },
         ],
       },
       {
@@ -439,6 +477,7 @@ export default function Ribbon({
                         aria-label={t.label}
                         aria-pressed={!!active[t.action]}
                         disabled={
+                          entry.disabled ||
                           (!!t.selection && selected < t.selection) ||
                           (isolated &&
                             [
