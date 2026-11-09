@@ -229,10 +229,7 @@ test('pré-seleção, eixo por snap/clique, Foco e referência transformada com 
   await panel(page)
     .getByLabel('Apagar objetos de origem?', { exact: true })
     .selectOption('yes');
-  await panel(page)
-    .getByLabel('Apagar objetos de origem?', { exact: true })
-    .blur();
-  await page.keyboard.press('Control+0');
+  await page.getByRole('button', { name: 'Foco no CAD', exact: true }).click();
   await expect(page.locator('.app-shell')).toHaveClass(/focus-mode/);
   await page.setViewportSize({ width: 900, height: 650 });
   await save(page);
