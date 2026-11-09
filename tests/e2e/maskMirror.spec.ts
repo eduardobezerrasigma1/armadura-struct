@@ -4,7 +4,6 @@ import { maskManipFixture } from '../fixtures/maskManipulation';
 import { nativePrimitive } from '../../src/domain/nativeMasks';
 import { maskPoint } from '../../src/cad/import';
 import { transformPoint } from '../../src/domain/transforms';
-import { toCsv } from '../../src/lib/exports';
 import { emptyProject } from '../../src/domain/model';
 import type { Project } from '../../src/domain/types';
 const panel = (p: Page) =>
@@ -39,6 +38,14 @@ async function save(p: Page): Promise<Project> {
     .click();
   return JSON.parse(readFileSync((await (await d).path())!, 'utf8'));
 }
+async function csv(p: Page) {
+  await p.getByRole('tab', { name: 'Arquivo', exact: true }).click();
+  const d = p.waitForEvent('download');
+  await p.getByRole('button', { name: 'Quadro CSV', exact: true }).click();
+  const text = readFileSync((await (await d).path())!, 'utf8');
+  await p.getByRole('tab', { name: 'Máscaras', exact: true }).click();
+  return text;
+}
 async function command(p: Page, s: string) {
   const c = p.getByRole('textbox', { name: 'Comando CAD' });
   await c.fill(s);
@@ -72,7 +79,8 @@ for (const remove of [false, true])
       'line',
     );
     await open(page, seed);
-    const before = await save(page);
+    const before = await save(page),
+      beforeCsv = await csv(page);
     await start(page);
     await select(page);
     await command(page, '0,0');
@@ -106,7 +114,7 @@ for (const remove of [false, true])
     expect(after.annotations).toEqual(before.annotations);
     expect(after.masks[1]).toEqual(before.masks[1]);
     expect(after.scheduleLock).toEqual(before.scheduleLock);
-    expect(toCsv(after)).toBe(toCsv(before));
+    expect(await csv(page)).toBe(beforeCsv);
     await command(page, '');
     expect((await save(page)).masks).toEqual(after.masks);
     await command(page, 'U');
